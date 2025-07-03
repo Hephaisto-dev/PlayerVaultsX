@@ -317,7 +317,7 @@ public class PlayerVaults extends JavaPlugin {
     }
 
     private void setupVaultManager() {
-        String storageType = getConfig().getString("storage", "yaml");
+        String storageType = getConf().getStorage().getStorageType();
         VaultStorage storage;
         if ("mysql".equalsIgnoreCase(storageType)) {
             // Read MySQL parameters from config

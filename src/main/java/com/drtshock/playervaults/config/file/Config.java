@@ -66,7 +66,7 @@ public class Config {
     private PurgePlanet purge = new PurgePlanet();
     @Comment("Sets the highest vault amount this plugin will test perms for")
     private int maxVaultAmountPermTest = 99;
-    @Comment("Storage option. Currently only flatfile, but soon more! :)")
+    @Comment("Storage option. flatfile or MySQL")
     private Storage storage = new Storage();
 
     public void setFromConfig(Logger l, FileConfiguration c) {
@@ -199,10 +199,15 @@ public class Config {
 
     public class Storage {
         private FlatFile flatFile = new FlatFile();
+        private MySQL mySQL = new MySQL();
         private String storageType = "flatfile";
 
         public FlatFile getFlatFile() {
             return this.flatFile;
+        }
+
+        public MySQL getMySQL() {
+            return mySQL;
         }
 
         public String getStorageType() {
@@ -217,6 +222,39 @@ public class Config {
 
             public boolean isBackups() {
                 return this.backups;
+            }
+        }
+
+        public class MySQL {
+            @Comment("MySQL host")
+            private String host = "localhost";
+            @Comment("MySQL port")
+            private int port = 3306;
+            @Comment("MySQL database name")
+            private String database = "playervaults";
+            @Comment("MySQL username")
+            private String username = "root";
+            @Comment("MySQL password")
+            private String password = "password";
+
+            public String getHost() {
+                return this.host;
+            }
+
+            public int getPort() {
+                return this.port;
+            }
+
+            public String getDatabase() {
+                return this.database;
+            }
+
+            public String getUsername() {
+                return this.username;
+            }
+
+            public String getPassword() {
+                return this.password;
             }
         }
     }
