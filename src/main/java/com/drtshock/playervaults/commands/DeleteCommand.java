@@ -20,7 +20,6 @@ package com.drtshock.playervaults.commands;
 
 import com.drtshock.playervaults.PlayerVaults;
 import com.drtshock.playervaults.util.Permission;
-import com.drtshock.playervaults.vaultmanagement.VaultManager;
 import com.drtshock.playervaults.vaultmanagement.VaultOperations;
 import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
@@ -64,7 +63,7 @@ public class DeleteCommand implements CommandExecutor {
                 // TODO: fix the stupid message inconsistencies where sometimes this class sends, sometimes vaultops does.
                 if (args[1].equalsIgnoreCase("all")) {
                     if (sender.hasPermission(Permission.DELETE_ALL)) {
-                        VaultManager.getInstance().deleteAllVaults(target);
+                        plugin.getVaultManager().deleteAllVaults(target);
                         this.plugin.getTL().deleteOtherVaultAll().title().with("player", target).send(sender);
                         PlayerVaults.getInstance().getLogger().info(String.format("%s deleted ALL vaults belonging to %s", sender.getName(), target));
                     } else {

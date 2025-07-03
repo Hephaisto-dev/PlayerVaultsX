@@ -20,7 +20,6 @@ package com.drtshock.playervaults.commands;
 
 import com.drtshock.playervaults.PlayerVaults;
 import com.drtshock.playervaults.util.Permission;
-import com.drtshock.playervaults.vaultmanagement.VaultManager;
 import com.drtshock.playervaults.vaultmanagement.VaultOperations;
 import com.drtshock.playervaults.vaultmanagement.VaultViewInfo;
 import org.bukkit.Bukkit;
@@ -28,8 +27,10 @@ import org.bukkit.OfflinePlayer;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
-import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
+
+import java.util.Set;
+import java.util.stream.Collectors;
 
 public class VaultCommand implements CommandExecutor {
     private final PlayerVaults plugin;
@@ -65,16 +66,12 @@ public class VaultCommand implements CommandExecutor {
 
                     if ("list".equals(args[1])) {
                         String target = getTarget(args[0]);
-                        YamlConfiguration file = VaultManager.getInstance().getPlayerVaultFile(target, false);
-                        if (file == null) {
+                        Set<Integer> vaultNumbers = plugin.getVaultManager().getVaultNumbers(target);
+                        if (vaultNumbers.isEmpty()) {
                             this.plugin.getTL().vaultDoesNotExist().title().send(sender);
                         } else {
-                            StringBuilder sb = new StringBuilder();
-                            for (String key : file.getKeys(false)) {
-                                sb.append(key.replace("vault", "")).append(" ");
-                            }
-
-                            this.plugin.getTL().existingVaults().title().with("player", args[0]).with("vault", sb.toString().trim()).send(sender);
+                            String vaults = vaultNumbers.stream().map(String::valueOf).collect(Collectors.joining(", "));
+                            this.plugin.getTL().existingVaults().title().with("player", args[0]).with("vault", vaults).send(sender);
                         }
                         break;
                     }

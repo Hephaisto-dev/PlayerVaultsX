@@ -1,5 +1,5 @@
 /**
- *   Copyright (C) 2015 Typesafe Inc. <http://typesafe.com>
+ * Copyright (C) 2015 Typesafe Inc. <http://typesafe.com>
  */
 package com.drtshock.playervaults.lib.com.typesafe.config.impl;
 
@@ -12,22 +12,6 @@ import java.io.StringReader;
 import java.util.*;
 
 final class PathParser {
-    static class Element {
-        StringBuilder sb;
-        // an element can be empty if it has a quoted empty string "" in it
-        boolean canBeEmpty;
-
-        Element(String initial, boolean canBeEmpty) {
-            this.canBeEmpty = canBeEmpty;
-            this.sb = new StringBuilder(initial);
-        }
-
-        @Override
-        public String toString() {
-            return "Element(" + sb.toString() + "," + canBeEmpty + ")";
-        }
-    }
-
     static ConfigOrigin apiOrigin = SimpleConfigOrigin.newSimple("path parameter");
 
     static ConfigNodePath parsePathNode(String path) {
@@ -64,30 +48,30 @@ final class PathParser {
         }
     }
 
-    protected static Path parsePathExpression(Iterator<Token> expression,
-                                            ConfigOrigin origin) {
+    static Path parsePathExpression(Iterator<Token> expression,
+                                    ConfigOrigin origin) {
         return parsePathExpression(expression, origin, null, null, ConfigSyntax.CONF);
     }
 
-    protected static Path parsePathExpression(Iterator<Token> expression,
-                                              ConfigOrigin origin, String originalText) {
+    private static Path parsePathExpression(Iterator<Token> expression,
+                                            ConfigOrigin origin, String originalText) {
         return parsePathExpression(expression, origin, originalText, null, ConfigSyntax.CONF);
     }
 
-    protected static ConfigNodePath parsePathNodeExpression(Iterator<Token> expression,
-                                                            ConfigOrigin origin) {
+    static ConfigNodePath parsePathNodeExpression(Iterator<Token> expression,
+                                                  ConfigOrigin origin) {
         return parsePathNodeExpression(expression, origin, null, ConfigSyntax.CONF);
     }
 
-    protected static ConfigNodePath parsePathNodeExpression(Iterator<Token> expression,
-                                                            ConfigOrigin origin, String originalText, ConfigSyntax flavor) {
+    private static ConfigNodePath parsePathNodeExpression(Iterator<Token> expression,
+                                                          ConfigOrigin origin, String originalText, ConfigSyntax flavor) {
         ArrayList<Token> pathTokens = new ArrayList<Token>();
         Path path = parsePathExpression(expression, origin, originalText, pathTokens, flavor);
         return new ConfigNodePath(path, pathTokens);
     }
 
     // originalText may be null if not available
-    protected static Path parsePathExpression(Iterator<Token> expression,
+    private static Path parsePathExpression(Iterator<Token> expression,
                                             ConfigOrigin origin, String originalText,
                                             ArrayList<Token> pathTokens,
                                             ConfigSyntax flavor) {
@@ -211,7 +195,7 @@ final class PathParser {
                 current.canBeEmpty = true;
         } else {
             // "buf" plus up to the period is an element
-            current.sb.append(newText.substring(0, i));
+            current.sb.append(newText, 0, i);
             // then start a new element
             buf.add(new Element("", false));
             // recurse to consume remainder of newText
@@ -249,10 +233,7 @@ final class PathParser {
             }
         }
 
-        if (lastWasDot)
-            return true;
-
-        return false;
+        return lastWasDot;
     }
 
     private static Path fastPathBuild(Path tail, String s, int end) {
@@ -277,5 +258,21 @@ final class PathParser {
             return null;
 
         return fastPathBuild(null, s, s.length());
+    }
+
+    static class Element {
+        StringBuilder sb;
+        // an element can be empty if it has a quoted empty string "" in it
+        boolean canBeEmpty;
+
+        Element(String initial, boolean canBeEmpty) {
+            this.canBeEmpty = canBeEmpty;
+            this.sb = new StringBuilder(initial);
+        }
+
+        @Override
+        public String toString() {
+            return "Element(" + sb.toString() + "," + canBeEmpty + ")";
+        }
     }
 }

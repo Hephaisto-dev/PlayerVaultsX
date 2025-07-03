@@ -73,7 +73,7 @@ public class EconomyOperations {
             return true;
         }
 
-        if (!VaultManager.getInstance().vaultExists(player.getUniqueId().toString(), number)) {
+        if (!PlayerVaults.getInstance().getVaultManager().vaultExists(player.getUniqueId().toString(), number)) {
             return payToCreate(player);
         } else {
             if (PlayerVaults.getInstance().getConf().getEconomy().getFeeToOpen() == 0) {
@@ -123,7 +123,7 @@ public class EconomyOperations {
             return true;
         }
 
-        File playerFile = new File(PlayerVaults.getInstance().getVaultData(), player.getUniqueId().toString() + ".yml");
+        File playerFile = new File(PlayerVaults.getInstance().getVaultData(), player.getUniqueId() + ".yml");
         if (playerFile.exists()) {
             YamlConfiguration playerData = YamlConfiguration.loadConfiguration(playerFile);
             if (playerData.getString("vault" + number) == null) {

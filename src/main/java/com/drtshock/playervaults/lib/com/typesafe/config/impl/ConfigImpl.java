@@ -1,31 +1,17 @@
 /**
- *   Copyright (C) 2011-2012 Typesafe Inc. <http://typesafe.com>
+ * Copyright (C) 2011-2012 Typesafe Inc. <http://typesafe.com>
  */
 package com.drtshock.playervaults.lib.com.typesafe.config.impl;
+
+import com.drtshock.playervaults.lib.com.typesafe.config.*;
+import com.drtshock.playervaults.lib.com.typesafe.config.impl.SimpleIncluder.NameSource;
 
 import java.io.File;
 import java.lang.ref.WeakReference;
 import java.net.URL;
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
+import java.util.*;
 import java.util.concurrent.Callable;
-
-import com.drtshock.playervaults.lib.com.typesafe.config.Config;
-import com.drtshock.playervaults.lib.com.typesafe.config.ConfigException;
-import com.drtshock.playervaults.lib.com.typesafe.config.ConfigIncluder;
-import com.drtshock.playervaults.lib.com.typesafe.config.ConfigMemorySize;
-import com.drtshock.playervaults.lib.com.typesafe.config.ConfigObject;
-import com.drtshock.playervaults.lib.com.typesafe.config.ConfigOrigin;
-import com.drtshock.playervaults.lib.com.typesafe.config.ConfigParseOptions;
-import com.drtshock.playervaults.lib.com.typesafe.config.ConfigParseable;
-import com.drtshock.playervaults.lib.com.typesafe.config.ConfigValue;
-import com.drtshock.playervaults.lib.com.typesafe.config.impl.SimpleIncluder.NameSource;
 
 /**
  * Internal implementation detail, not ABI stable, do not touch.
@@ -33,56 +19,24 @@ import com.drtshock.playervaults.lib.com.typesafe.config.impl.SimpleIncluder.Nam
  */
 public class ConfigImpl {
 
-    private static class LoaderCache {
-        private Config currentSystemProperties;
-        private WeakReference<ClassLoader> currentLoader;
-        private Map<String, Config> cache;
+    // default origin for values created with fromAnyRef and no origin specified
+    final private static ConfigOrigin defaultValueOrigin = SimpleConfigOrigin
+            .newSimple("hardcoded value");
+    final private static ConfigBoolean defaultTrueValue = new ConfigBoolean(
+            defaultValueOrigin, true);
+    final private static ConfigBoolean defaultFalseValue = new ConfigBoolean(
+            defaultValueOrigin, false);
+    final private static ConfigNull defaultNullValue = new ConfigNull(
+            defaultValueOrigin);
 
-        LoaderCache() {
-            this.currentSystemProperties = null;
-            this.currentLoader = new WeakReference<ClassLoader>(null);
-            this.cache = new HashMap<String, Config>();
-        }
+    final private static SimpleConfigList defaultEmptyList = new SimpleConfigList(
+            defaultValueOrigin, Collections.emptyList());
 
-        // for now, caching as long as the loader remains the same,
-        // drop entire cache if it changes.
-        synchronized Config getOrElseUpdate(ClassLoader loader, String key, Callable<Config> updater) {
-            if (loader != currentLoader.get()) {
-                // reset the cache if we start using a different loader
-                cache.clear();
-                currentLoader = new WeakReference<ClassLoader>(loader);
-            }
-
-            Config systemProperties = systemPropertiesAsConfig();
-            if (systemProperties != currentSystemProperties) {
-                cache.clear();
-                currentSystemProperties = systemProperties;
-            }
-
-            Config config = cache.get(key);
-            if (config == null) {
-                try {
-                    config = updater.call();
-                } catch (RuntimeException e) {
-                    throw e; // this will include ConfigException
-                } catch (Exception e) {
-                    throw new ConfigException.Generic(e.getMessage(), e);
-                }
-                if (config == null)
-                    throw new ConfigException.BugOrBroken("null config from cache updater");
-                cache.put(key, config);
-            }
-
-            return config;
-        }
-    }
-
-    private static class LoaderCacheHolder {
-        static final LoaderCache cache = new LoaderCache();
-    }
+    final private static SimpleConfigObject defaultEmptyObject = SimpleConfigObject
+            .empty(defaultValueOrigin);
 
     public static Config computeCachedConfig(ClassLoader loader, String key,
-            Callable<Config> updater) {
+                                             Callable<Config> updater) {
         LoaderCache cache;
         try {
             cache = LoaderCacheHolder.cache;
@@ -92,42 +46,14 @@ public class ConfigImpl {
         return cache.getOrElseUpdate(loader, key, updater);
     }
 
-
-    static class FileNameSource implements SimpleIncluder.NameSource {
-        @Override
-        public ConfigParseable nameToParseable(String name, ConfigParseOptions parseOptions) {
-            return Parseable.newFile(new File(name), parseOptions);
-        }
-    };
-
-    static class ClasspathNameSource implements SimpleIncluder.NameSource {
-        @Override
-        public ConfigParseable nameToParseable(String name, ConfigParseOptions parseOptions) {
-            return Parseable.newResources(name, parseOptions);
-        }
-    };
-
-    static class ClasspathNameSourceWithClass implements SimpleIncluder.NameSource {
-        final private Class<?> klass;
-
-        public ClasspathNameSourceWithClass(Class<?> klass) {
-            this.klass = klass;
-        }
-
-        @Override
-        public ConfigParseable nameToParseable(String name, ConfigParseOptions parseOptions) {
-            return Parseable.newResources(klass, name, parseOptions);
-        }
-    };
-
     public static ConfigObject parseResourcesAnySyntax(Class<?> klass, String resourceBasename,
-            ConfigParseOptions baseOptions) {
+                                                       ConfigParseOptions baseOptions) {
         NameSource source = new ClasspathNameSourceWithClass(klass);
         return SimpleIncluder.fromBasename(source, resourceBasename, baseOptions);
     }
 
     public static ConfigObject parseResourcesAnySyntax(String resourceBasename,
-            ConfigParseOptions baseOptions) {
+                                                       ConfigParseOptions baseOptions) {
         NameSource source = new ClasspathNameSource();
         return SimpleIncluder.fromBasename(source, resourceBasename, baseOptions);
     }
@@ -151,26 +77,12 @@ public class ConfigImpl {
         return emptyObject(origin);
     }
 
-    // default origin for values created with fromAnyRef and no origin specified
-    final private static ConfigOrigin defaultValueOrigin = SimpleConfigOrigin
-            .newSimple("hardcoded value");
-    final private static ConfigBoolean defaultTrueValue = new ConfigBoolean(
-            defaultValueOrigin, true);
-    final private static ConfigBoolean defaultFalseValue = new ConfigBoolean(
-            defaultValueOrigin, false);
-    final private static ConfigNull defaultNullValue = new ConfigNull(
-            defaultValueOrigin);
-    final private static SimpleConfigList defaultEmptyList = new SimpleConfigList(
-            defaultValueOrigin, Collections.<AbstractConfigValue> emptyList());
-    final private static SimpleConfigObject defaultEmptyObject = SimpleConfigObject
-            .empty(defaultValueOrigin);
-
     private static SimpleConfigList emptyList(ConfigOrigin origin) {
         if (origin == null || origin == defaultValueOrigin)
             return defaultEmptyList;
         else
             return new SimpleConfigList(origin,
-                    Collections.<AbstractConfigValue> emptyList());
+                    Collections.emptyList());
     }
 
     private static AbstractConfigObject emptyObject(ConfigOrigin origin) {
@@ -202,7 +114,7 @@ public class ConfigImpl {
     }
 
     static AbstractConfigValue fromAnyRef(Object object, ConfigOrigin origin,
-            FromMapMode mapMode) {
+                                          FromMapMode mapMode) {
         if (origin == null)
             throw new ConfigException.BugOrBroken(
                     "origin not supposed to be null");
@@ -212,7 +124,7 @@ public class ConfigImpl {
                 return new ConfigNull(origin);
             else
                 return defaultNullValue;
-        } else if(object instanceof AbstractConfigValue) {
+        } else if (object instanceof AbstractConfigValue) {
             return (AbstractConfigValue) object;
         } else if (object instanceof Boolean) {
             if (origin != defaultValueOrigin) {
@@ -284,10 +196,6 @@ public class ConfigImpl {
         }
     }
 
-    private static class DefaultIncluderHolder {
-        static final ConfigIncluder defaultIncluder = new SimpleIncluder(null);
-    }
-
     static ConfigIncluder defaultIncluder() {
         try {
             return DefaultIncluderHolder.defaultIncluder;
@@ -311,11 +219,6 @@ public class ConfigImpl {
                 ConfigParseOptions.defaults().setOriginDescription("system properties")).parse();
     }
 
-    private static class SystemPropertiesHolder {
-        // this isn't final due to the reloadSystemPropertiesConfig() hack below
-        static volatile AbstractConfigObject systemProperties = loadSystemProperties();
-    }
-
     static AbstractConfigObject systemPropertiesAsConfigObject() {
         try {
             return SystemPropertiesHolder.systemProperties;
@@ -336,10 +239,6 @@ public class ConfigImpl {
 
     private static AbstractConfigObject loadEnvVariables() {
         return PropertiesParser.fromStringMap(newSimpleOrigin("env variables"), System.getenv());
-    }
-
-    private static class EnvVariablesHolder {
-        static volatile AbstractConfigObject envVariables = loadEnvVariables();
     }
 
     static AbstractConfigObject envVariablesAsConfigObject() {
@@ -371,49 +270,6 @@ public class ConfigImpl {
                 return systemPropertiesAsConfig().withFallback(unresolvedResources).resolve();
             }
         });
-    }
-
-    private static class DebugHolder {
-        private static String LOADS = "loads";
-        private static String SUBSTITUTIONS = "substitutions";
-
-        private static Map<String, Boolean> loadDiagnostics() {
-            Map<String, Boolean> result = new HashMap<String, Boolean>();
-            result.put(LOADS, false);
-            result.put(SUBSTITUTIONS, false);
-
-            // People do -Dconfig.trace=foo,bar to enable tracing of different things
-            String s = System.getProperty("config.trace");
-            if (s == null) {
-                return result;
-            } else {
-                String[] keys = s.split(",");
-                for (String k : keys) {
-                    if (k.equals(LOADS)) {
-                        result.put(LOADS, true);
-                    } else if (k.equals(SUBSTITUTIONS)) {
-                        result.put(SUBSTITUTIONS, true);
-                    } else {
-                        System.err.println("config.trace property contains unknown trace topic '"
-                                + k + "'");
-                    }
-                }
-                return result;
-            }
-        }
-
-        private static final Map<String, Boolean> diagnostics = loadDiagnostics();
-
-        private static final boolean traceLoadsEnabled = diagnostics.get(LOADS);
-        private static final boolean traceSubstitutionsEnabled = diagnostics.get(SUBSTITUTIONS);
-
-        static boolean traceLoadsEnabled() {
-            return traceLoadsEnabled;
-        }
-
-        static boolean traceSubstitutionsEnabled() {
-            return traceSubstitutionsEnabled;
-        }
     }
 
     public static boolean traceLoadsEnabled() {
@@ -449,7 +305,7 @@ public class ConfigImpl {
     // detail about what happened. call this if you have a better "what" than
     // further down on the stack.
     static ConfigException.NotResolved improveNotResolved(Path what,
-            ConfigException.NotResolved original) {
+                                                          ConfigException.NotResolved original) {
         String newMessage = what.render()
                 + " has not been resolved, you need to call Config#resolve(),"
                 + " see API docs for Config#resolve()";
@@ -473,5 +329,134 @@ public class ConfigImpl {
 
     public static ConfigOrigin newURLOrigin(URL url) {
         return SimpleConfigOrigin.newURL(url);
+    }
+
+    private static class LoaderCache {
+        private Config currentSystemProperties;
+        private WeakReference<ClassLoader> currentLoader;
+        private final Map<String, Config> cache;
+
+        LoaderCache() {
+            this.currentSystemProperties = null;
+            this.currentLoader = new WeakReference<ClassLoader>(null);
+            this.cache = new HashMap<String, Config>();
+        }
+
+        // for now, caching as long as the loader remains the same,
+        // drop entire cache if it changes.
+        synchronized Config getOrElseUpdate(ClassLoader loader, String key, Callable<Config> updater) {
+            if (loader != currentLoader.get()) {
+                // reset the cache if we start using a different loader
+                cache.clear();
+                currentLoader = new WeakReference<ClassLoader>(loader);
+            }
+
+            Config systemProperties = systemPropertiesAsConfig();
+            if (systemProperties != currentSystemProperties) {
+                cache.clear();
+                currentSystemProperties = systemProperties;
+            }
+
+            Config config = cache.get(key);
+            if (config == null) {
+                try {
+                    config = updater.call();
+                } catch (RuntimeException e) {
+                    throw e; // this will include ConfigException
+                } catch (Exception e) {
+                    throw new ConfigException.Generic(e.getMessage(), e);
+                }
+                if (config == null)
+                    throw new ConfigException.BugOrBroken("null config from cache updater");
+                cache.put(key, config);
+            }
+
+            return config;
+        }
+    }
+
+    private static class LoaderCacheHolder {
+        static final LoaderCache cache = new LoaderCache();
+    }
+
+    static class FileNameSource implements SimpleIncluder.NameSource {
+        @Override
+        public ConfigParseable nameToParseable(String name, ConfigParseOptions parseOptions) {
+            return Parseable.newFile(new File(name), parseOptions);
+        }
+    }
+
+    static class ClasspathNameSource implements SimpleIncluder.NameSource {
+        @Override
+        public ConfigParseable nameToParseable(String name, ConfigParseOptions parseOptions) {
+            return Parseable.newResources(name, parseOptions);
+        }
+    }
+
+    static class ClasspathNameSourceWithClass implements SimpleIncluder.NameSource {
+        final private Class<?> klass;
+
+        public ClasspathNameSourceWithClass(Class<?> klass) {
+            this.klass = klass;
+        }
+
+        @Override
+        public ConfigParseable nameToParseable(String name, ConfigParseOptions parseOptions) {
+            return Parseable.newResources(klass, name, parseOptions);
+        }
+    }
+
+    private static class DefaultIncluderHolder {
+        static final ConfigIncluder defaultIncluder = new SimpleIncluder(null);
+    }
+
+    private static class SystemPropertiesHolder {
+        // this isn't final due to the reloadSystemPropertiesConfig() hack below
+        static volatile AbstractConfigObject systemProperties = loadSystemProperties();
+    }
+
+    private static class EnvVariablesHolder {
+        static volatile AbstractConfigObject envVariables = loadEnvVariables();
+    }
+
+    private static class DebugHolder {
+        private static final String LOADS = "loads";
+        private static final String SUBSTITUTIONS = "substitutions";
+        private static final Map<String, Boolean> diagnostics = loadDiagnostics();
+        private static final boolean traceLoadsEnabled = diagnostics.get(LOADS);
+        private static final boolean traceSubstitutionsEnabled = diagnostics.get(SUBSTITUTIONS);
+
+        private static Map<String, Boolean> loadDiagnostics() {
+            Map<String, Boolean> result = new HashMap<String, Boolean>();
+            result.put(LOADS, false);
+            result.put(SUBSTITUTIONS, false);
+
+            // People do -Dconfig.trace=foo,bar to enable tracing of different things
+            String s = System.getProperty("config.trace");
+            if (s == null) {
+                return result;
+            } else {
+                String[] keys = s.split(",");
+                for (String k : keys) {
+                    if (k.equals(LOADS)) {
+                        result.put(LOADS, true);
+                    } else if (k.equals(SUBSTITUTIONS)) {
+                        result.put(SUBSTITUTIONS, true);
+                    } else {
+                        System.err.println("config.trace property contains unknown trace topic '"
+                                + k + "'");
+                    }
+                }
+                return result;
+            }
+        }
+
+        static boolean traceLoadsEnabled() {
+            return traceLoadsEnabled;
+        }
+
+        static boolean traceSubstitutionsEnabled() {
+            return traceSubstitutionsEnabled;
+        }
     }
 }

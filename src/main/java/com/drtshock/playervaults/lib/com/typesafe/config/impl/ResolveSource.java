@@ -23,16 +23,6 @@ final class ResolveSource {
         this.pathFromRoot = null;
     }
 
-    // if we replace the root with a non-object, use an empty
-    // object with nothing in it instead.
-    private AbstractConfigObject rootMustBeObj(Container value) {
-        if (value instanceof AbstractConfigObject) {
-            return (AbstractConfigObject) value;
-        } else {
-            return SimpleConfigObject.empty();
-        }
-    }
-
     // as a side effect, findInObject() will have to resolve all parents of the
     // child being peeked, but NOT the child itself. Caller has to resolve
     // the child itself if needed. ValueWithPath.value can be null but
@@ -83,8 +73,52 @@ final class ResolveSource {
         }
     }
 
+    // returns null if the replacement results in deleting all the nodes.
+    private static Node<Container> replace(Node<Container> list, Container old, AbstractConfigValue replacement) {
+        Container child = list.head();
+        if (child != old)
+            throw new ConfigException.BugOrBroken("Can only replace() the top node we're resolving; had " + child
+                    + " on top and tried to replace " + old + " overall list was " + list);
+        Container parent = list.tail() == null ? null : list.tail().head();
+        if (replacement == null || !(replacement instanceof Container)) {
+            if (parent == null) {
+                return null;
+            } else {
+                /*
+                 * we are deleting the child from the stack of containers
+                 * because it's either going away or not a container
+                 */
+                AbstractConfigValue newParent = parent.replaceChild((AbstractConfigValue) old, null);
+
+                return replace(list.tail(), parent, newParent);
+            }
+        } else {
+            /* we replaced the container with another container */
+            if (parent == null) {
+                return new Node<Container>((Container) replacement);
+            } else {
+                AbstractConfigValue newParent = parent.replaceChild((AbstractConfigValue) old, replacement);
+                Node<Container> newTail = replace(list.tail(), parent, newParent);
+                if (newTail != null)
+                    return newTail.prepend((Container) replacement);
+                else
+                    return new Node<Container>((Container) replacement);
+            }
+        }
+    }
+
+    // if we replace the root with a non-object, use an empty
+    // object with nothing in it instead.
+    private AbstractConfigObject rootMustBeObj(Container value) {
+        if (value instanceof AbstractConfigObject) {
+            return (AbstractConfigObject) value;
+        } else {
+            return SimpleConfigObject.empty();
+        }
+    }
+
     ResultWithPath lookupSubst(ResolveContext context, SubstitutionExpression subst,
-            int prefixLength)
+                               int prefixLength)
             throws AbstractConfigValue.NotPossibleToResolve {
         if (ConfigImpl.traceSubstitutionsEnabled())
             ConfigImpl.trace(context.depth(), "searching for " + subst);
@@ -164,44 +198,10 @@ final class ResolveSource {
             return new ResolveSource(root);
     }
 
-    // returns null if the replacement results in deleting all the nodes.
-    private static Node<Container> replace(Node<Container> list, Container old, AbstractConfigValue replacement) {
-        Container child = list.head();
-        if (child != old)
-            throw new ConfigException.BugOrBroken("Can only replace() the top node we're resolving; had " + child
-                    + " on top and tried to replace " + old + " overall list was " + list);
-        Container parent = list.tail() == null ? null : list.tail().head();
-        if (replacement == null || !(replacement instanceof Container)) {
-            if (parent == null) {
-                return null;
-            } else {
-                /*
-                 * we are deleting the child from the stack of containers
-                 * because it's either going away or not a container
-                 */
-                AbstractConfigValue newParent = parent.replaceChild((AbstractConfigValue) old, null);
-
-                return replace(list.tail(), parent, newParent);
-            }
-        } else {
-            /* we replaced the container with another container */
-            if (parent == null) {
-                return new Node<Container>((Container) replacement);
-            } else {
-                AbstractConfigValue newParent = parent.replaceChild((AbstractConfigValue) old, replacement);
-                Node<Container> newTail = replace(list.tail(), parent, newParent);
-                if (newTail != null)
-                    return newTail.prepend((Container) replacement);
-                else
-                    return new Node<Container>((Container) replacement);
-            }
-        }
-    }
-
     ResolveSource replaceCurrentParent(Container old, Container replacement) {
         if (ConfigImpl.traceSubstitutionsEnabled())
             ConfigImpl.trace("replaceCurrentParent old " + old + "@" + System.identityHashCode(old) + " replacement "
-                + replacement + "@" + System.identityHashCode(old) + " in " + this);
+                    + replacement + "@" + System.identityHashCode(old) + " in " + this);
         if (old == replacement) {
             return this;
         } else if (pathFromRoot != null) {

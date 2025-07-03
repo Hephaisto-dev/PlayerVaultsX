@@ -1,5 +1,5 @@
 /**
- *   Copyright (C) 2015 Typesafe Inc. <http://typesafe.com>
+ * Copyright (C) 2015 Typesafe Inc. <http://typesafe.com>
  */
 package com.drtshock.playervaults.lib.com.typesafe.config.parser;
 
@@ -31,5 +31,5 @@ public interface ConfigNode {
      *
      * @return the original text used to form this node as a String
      */
-    public String render();
+    String render();
 }

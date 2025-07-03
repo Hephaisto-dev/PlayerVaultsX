@@ -1,13 +1,13 @@
 /**
- *   Copyright (C) 2011-2012 Typesafe Inc. <http://typesafe.com>
+ * Copyright (C) 2011-2012 Typesafe Inc. <http://typesafe.com>
  */
 package com.drtshock.playervaults.lib.com.typesafe.config.impl;
 
-import java.io.ObjectStreamException;
-import java.io.Serializable;
-
 import com.drtshock.playervaults.lib.com.typesafe.config.ConfigOrigin;
 import com.drtshock.playervaults.lib.com.typesafe.config.ConfigValueType;
+
+import java.io.ObjectStreamException;
+import java.io.Serializable;
 
 final class ConfigDouble extends ConfigNumber implements Serializable {
 

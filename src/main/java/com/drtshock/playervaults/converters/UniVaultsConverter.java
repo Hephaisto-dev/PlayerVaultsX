@@ -7,24 +7,14 @@ import org.bukkit.Material;
 import org.bukkit.command.CommandSender;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.plugin.Plugin;
 import org.bukkit.util.io.BukkitObjectInputStream;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.lang.invoke.MethodHandle;
-import java.lang.invoke.MethodHandles;
-import java.lang.invoke.MethodType;
-import java.lang.reflect.Field;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
 import java.util.Arrays;
 import java.util.Base64;
-import java.util.HashSet;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Level;
 import java.util.regex.Matcher;
@@ -35,7 +25,7 @@ public class UniVaultsConverter implements Converter {
     @Override
     public int run(CommandSender initiator) {
         PlayerVaults plugin = PlayerVaults.getInstance();
-        VaultManager vaultManager = VaultManager.getInstance();
+        VaultManager vaultManager = plugin.getVaultManager();
 
         AtomicInteger counter = new AtomicInteger(0);
 
@@ -55,10 +45,7 @@ public class UniVaultsConverter implements Converter {
                         ByteArrayInputStream byteArrayInputStream = new ByteArrayInputStream(Base64.getMimeDecoder().decode(b64));
                         try (BukkitObjectInputStream bukkitObjectInputStream = new BukkitObjectInputStream(byteArrayInputStream)) {
                             ItemStack[] items = (ItemStack[]) bukkitObjectInputStream.readObject();
-                            boolean cursed = true;
-                            if (items[items.length - 9] == null || !(items[items.length - 9].getType() == Material.PAPER || items[items.length - 9].getType() == Material.GRAY_STAINED_GLASS_PANE)) {
-                                cursed = false;
-                            }
+                            boolean cursed = items[items.length - 9] != null && (items[items.length - 9].getType() == Material.PAPER || items[items.length - 9].getType() == Material.GRAY_STAINED_GLASS_PANE);
                             for (int i = items.length - 8; i < items.length - 1; i++) {
                                 if (items[i] == null || !(items[i].getType() == Material.GRAY_STAINED_GLASS_PANE)) {
                                     cursed = false;

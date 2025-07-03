@@ -43,7 +43,7 @@ public class EnderVaultsConverter implements Converter {
     @Override
     public int run(CommandSender initiator) {
         PlayerVaults plugin = PlayerVaults.getInstance();
-        VaultManager vaultManager = VaultManager.getInstance();
+        VaultManager vaultManager = plugin.getVaultManager();
 
         Path path = plugin.getDataFolder().toPath().getParent().resolve("EnderVaults").resolve("data");
         if (!Files.isDirectory(path)) {

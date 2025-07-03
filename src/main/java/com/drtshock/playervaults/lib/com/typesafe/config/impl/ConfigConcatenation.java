@@ -1,22 +1,18 @@
 package com.drtshock.playervaults.lib.com.typesafe.config.impl;
 
+import com.drtshock.playervaults.lib.com.typesafe.config.*;
+
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-
-import com.drtshock.playervaults.lib.com.typesafe.config.ConfigException;
-import com.drtshock.playervaults.lib.com.typesafe.config.ConfigObject;
-import com.drtshock.playervaults.lib.com.typesafe.config.ConfigOrigin;
-import com.drtshock.playervaults.lib.com.typesafe.config.ConfigRenderOptions;
-import com.drtshock.playervaults.lib.com.typesafe.config.ConfigValueType;
 
 /**
  * A ConfigConcatenation represents a list of values to be concatenated (see the
  * spec). It only has to exist if at least one value is an unresolved
  * substitution, otherwise we could go ahead and collapse the list into a single
  * value.
- *
+ * <p>
  * Right now this is always a list of strings and ${} references, but in the
  * future should support a list of ConfigList. We may also support
  * concatenations of objects, but ConfigDelayedMerge should be used for that
@@ -47,42 +43,8 @@ final class ConfigConcatenation extends AbstractConfigValue implements Unmergeab
                     "Created concatenation without an unmergeable in it: " + this);
     }
 
-    private ConfigException.NotResolved notResolved() {
-        return new ConfigException.NotResolved(
-                "need to Config#resolve(), see the API docs for Config#resolve(); substitution not resolved: "
-                        + this);
-    }
-
-    @Override
-    public ConfigValueType valueType() {
-        throw notResolved();
-    }
-
-    @Override
-    public Object unwrapped() {
-        throw notResolved();
-    }
-
-    @Override
-    protected ConfigConcatenation newCopy(ConfigOrigin newOrigin) {
-        return new ConfigConcatenation(newOrigin, pieces);
-    }
-
-    @Override
-    protected boolean ignoresFallbacks() {
-        // we can never ignore fallbacks because if a child ConfigReference
-        // is self-referential we have to look lower in the merge stack
-        // for its value.
-        return false;
-    }
-
-    @Override
-    public Collection<ConfigConcatenation> unmergedValues() {
-        return Collections.singleton(this);
-    }
-
     private static boolean isIgnoredWhitespace(AbstractConfigValue value) {
-        return (value instanceof ConfigString) && !((ConfigString)value).wasQuoted();
+        return (value instanceof ConfigString) && !((ConfigString) value).wasQuoted();
     }
 
     /**
@@ -107,9 +69,9 @@ final class ConfigConcatenation extends AbstractConfigValue implements Unmergeab
         if (left instanceof ConfigObject && right instanceof ConfigObject) {
             joined = right.withFallback(left);
         } else if (left instanceof SimpleConfigList && right instanceof SimpleConfigList) {
-            joined = ((SimpleConfigList)left).concatenate((SimpleConfigList)right);
+            joined = ((SimpleConfigList) left).concatenate((SimpleConfigList) right);
         } else if ((left instanceof SimpleConfigList || left instanceof ConfigObject) &&
-                   isIgnoredWhitespace(right)) {
+                isIgnoredWhitespace(right)) {
             joined = left;
             // it should be impossible that left is whitespace and right is a list or object
         } else if (left instanceof ConfigConcatenation || right instanceof ConfigConcatenation) {
@@ -175,6 +137,40 @@ final class ConfigConcatenation extends AbstractConfigValue implements Unmergeab
             ConfigOrigin mergedOrigin = SimpleConfigOrigin.mergeOrigins(consolidated);
             return new ConfigConcatenation(mergedOrigin, consolidated);
         }
+    }
+
+    private ConfigException.NotResolved notResolved() {
+        return new ConfigException.NotResolved(
+                "need to Config#resolve(), see the API docs for Config#resolve(); substitution not resolved: "
+                        + this);
+    }
+
+    @Override
+    public ConfigValueType valueType() {
+        throw notResolved();
+    }
+
+    @Override
+    public Object unwrapped() {
+        throw notResolved();
+    }
+
+    @Override
+    protected ConfigConcatenation newCopy(ConfigOrigin newOrigin) {
+        return new ConfigConcatenation(newOrigin, pieces);
+    }
+
+    @Override
+    protected boolean ignoresFallbacks() {
+        // we can never ignore fallbacks because if a child ConfigReference
+        // is self-referential we have to look lower in the merge stack
+        // for its value.
+        return false;
+    }
+
+    @Override
+    public Collection<ConfigConcatenation> unmergedValues() {
+        return Collections.singleton(this);
     }
 
     @Override

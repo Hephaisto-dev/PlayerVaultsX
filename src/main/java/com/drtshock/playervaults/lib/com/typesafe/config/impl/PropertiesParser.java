@@ -1,26 +1,18 @@
 /**
- *   Copyright (C) 2011-2012 Typesafe Inc. <http://typesafe.com>
+ * Copyright (C) 2011-2012 Typesafe Inc. <http://typesafe.com>
  */
 package com.drtshock.playervaults.lib.com.typesafe.config.impl;
-
-import java.io.IOException;
-import java.io.Reader;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
-import java.util.Set;
 
 import com.drtshock.playervaults.lib.com.typesafe.config.ConfigException;
 import com.drtshock.playervaults.lib.com.typesafe.config.ConfigOrigin;
 
+import java.io.IOException;
+import java.io.Reader;
+import java.util.*;
+
 final class PropertiesParser {
     static AbstractConfigObject parse(Reader reader,
-            ConfigOrigin origin) throws IOException {
+                                      ConfigOrigin origin) throws IOException {
         Properties props = new Properties();
         props.load(reader);
         return fromProperties(origin, props);
@@ -55,7 +47,7 @@ final class PropertiesParser {
     }
 
     static AbstractConfigObject fromProperties(ConfigOrigin origin,
-            Properties props) {
+                                               Properties props) {
         return fromEntrySet(origin, props.entrySet());
     }
 
@@ -81,7 +73,7 @@ final class PropertiesParser {
     }
 
     static AbstractConfigObject fromPathMap(ConfigOrigin origin,
-            Map<?, ?> pathExpressionMap) {
+                                            Map<?, ?> pathExpressionMap) {
         Map<Path, Object> pathMap = new HashMap<Path, Object>();
         for (Map.Entry<?, ?> entry : pathExpressionMap.entrySet()) {
             Object keyObj = entry.getKey();
@@ -96,7 +88,7 @@ final class PropertiesParser {
     }
 
     private static AbstractConfigObject fromPathMap(ConfigOrigin origin,
-            Map<Path, Object> pathMap, boolean convertedFromProperties) {
+                                                    Map<Path, Object> pathMap, boolean convertedFromProperties) {
         /*
          * First, build a list of paths that will have values, either string or
          * object values.

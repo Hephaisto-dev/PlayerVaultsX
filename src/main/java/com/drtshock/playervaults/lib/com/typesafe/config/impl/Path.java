@@ -1,11 +1,12 @@
 /**
- *   Copyright (C) 2011-2012 Typesafe Inc. <http://typesafe.com>
+ * Copyright (C) 2011-2012 Typesafe Inc. <http://typesafe.com>
  */
 package com.drtshock.playervaults.lib.com.typesafe.config.impl;
 
-import java.util.*;
-
 import com.drtshock.playervaults.lib.com.typesafe.config.ConfigException;
+
+import java.util.Iterator;
+import java.util.List;
 
 final class Path {
 
@@ -55,12 +56,38 @@ final class Path {
         this.remainder = pb.result();
     }
 
+    // this doesn't have a very precise meaning, just to reduce
+    // noise from quotes in the rendered path for average cases
+    static boolean hasFunkyChars(String s) {
+        int length = s.length();
+
+        if (length == 0)
+            return false;
+
+        for (int i = 0; i < length; ++i) {
+            char c = s.charAt(i);
+
+            if (Character.isLetterOrDigit(c) || c == '-' || c == '_')
+                continue;
+            else
+                return true;
+        }
+        return false;
+    }
+
+    static Path newKey(String key) {
+        return new Path(key, null);
+    }
+
+    static Path newPath(String path) {
+        return PathParser.parsePath(path);
+    }
+
     String first() {
         return first;
     }
 
     /**
-     *
      * @return path minus the first element or null if no more elements
      */
     Path remainder() {
@@ -68,7 +95,6 @@ final class Path {
     }
 
     /**
-     *
      * @return path minus the last element or null if we have just one element
      */
     Path parent() {
@@ -85,7 +111,6 @@ final class Path {
     }
 
     /**
-     *
      * @return last element in the path
      */
     String last() {
@@ -144,7 +169,7 @@ final class Path {
         Path myRemainder = this;
         Path otherRemainder = other;
         if (otherRemainder.length() <= myRemainder.length()) {
-            while(otherRemainder != null) {
+            while (otherRemainder != null) {
                 if (!otherRemainder.first().equals(myRemainder.first()))
                     return false;
                 myRemainder = myRemainder.remainder();
@@ -157,11 +182,10 @@ final class Path {
 
     @Override
     public boolean equals(Object other) {
-        if (other instanceof Path) {
-            Path that = (Path) other;
+        if (other instanceof Path that) {
             return this.first.equals(that.first)
                     && ConfigImplUtil.equalsHandlingNull(this.remainder,
-                            that.remainder);
+                    that.remainder);
         } else {
             return false;
         }
@@ -171,25 +195,6 @@ final class Path {
     public int hashCode() {
         return 41 * (41 + first.hashCode())
                 + (remainder == null ? 0 : remainder.hashCode());
-    }
-
-    // this doesn't have a very precise meaning, just to reduce
-    // noise from quotes in the rendered path for average cases
-    static boolean hasFunkyChars(String s) {
-        int length = s.length();
-
-        if (length == 0)
-            return false;
-
-        for (int i = 0; i < length; ++i) {
-            char c = s.charAt(i);
-
-            if (Character.isLetterOrDigit(c) || c == '-' || c == '_')
-                continue;
-            else
-                return true;
-        }
-        return false;
     }
 
     private void appendToStringBuilder(StringBuilder sb) {
@@ -220,13 +225,5 @@ final class Path {
         StringBuilder sb = new StringBuilder();
         appendToStringBuilder(sb);
         return sb.toString();
-    }
-
-    static Path newKey(String key) {
-        return new Path(key, null);
-    }
-
-    static Path newPath(String path) {
-        return PathParser.parsePath(path);
     }
 }

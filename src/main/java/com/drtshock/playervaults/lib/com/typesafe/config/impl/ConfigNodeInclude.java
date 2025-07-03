@@ -14,7 +14,7 @@ final class ConfigNodeInclude extends AbstractConfigNode {
         this.isRequired = isRequired;
     }
 
-    final public Collection<AbstractConfigNode> children() {
+    public Collection<AbstractConfigNode> children() {
         return children;
     }
 
@@ -27,18 +27,18 @@ final class ConfigNodeInclude extends AbstractConfigNode {
         return tokens;
     }
 
-    protected ConfigIncludeKind kind() {
+    ConfigIncludeKind kind() {
         return kind;
     }
 
-    protected boolean isRequired() {
+    boolean isRequired() {
         return isRequired;
     }
 
-    protected String name() {
+    String name() {
         for (AbstractConfigNode n : children) {
             if (n instanceof ConfigNodeSimpleValue) {
-                return (String)Tokens.getValue(((ConfigNodeSimpleValue) n).token()).unwrapped();
+                return (String) Tokens.getValue(((ConfigNodeSimpleValue) n).token()).unwrapped();
             }
         }
         return null;

@@ -1,5 +1,5 @@
 /**
- *   Copyright (C) 2011-2012 Typesafe Inc. <http://typesafe.com>
+ * Copyright (C) 2011-2012 Typesafe Inc. <http://typesafe.com>
  */
 package com.drtshock.playervaults.lib.com.typesafe.config.impl;
 
@@ -36,7 +36,9 @@ class Token {
         return tokenType;
     }
 
-    public String tokenText() { return tokenText; }
+    public String tokenText() {
+        return tokenText;
+    }
 
     // this is final because we don't always use the origin() accessor,
     // and we don't because it throws if origin is null

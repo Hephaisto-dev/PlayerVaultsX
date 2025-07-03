@@ -1,15 +1,11 @@
 /**
- *   Copyright (C) 2015 Typesafe Inc. <http://typesafe.com>
+ * Copyright (C) 2015 Typesafe Inc. <http://typesafe.com>
  */
 package com.drtshock.playervaults.lib.com.typesafe.config.impl;
 
-import java.util.*;
+import com.drtshock.playervaults.lib.com.typesafe.config.*;
 
-import com.drtshock.playervaults.lib.com.typesafe.config.ConfigException;
-import com.drtshock.playervaults.lib.com.typesafe.config.ConfigOrigin;
-import com.drtshock.playervaults.lib.com.typesafe.config.ConfigParseOptions;
-import com.drtshock.playervaults.lib.com.typesafe.config.ConfigSyntax;
-import com.drtshock.playervaults.lib.com.typesafe.config.ConfigValueType;
+import java.util.*;
 
 final class ConfigDocumentParser {
     static ConfigNodeRoot parse(Iterator<Token> tokens, ConfigOrigin origin, ConfigParseOptions options) {
@@ -25,15 +21,16 @@ final class ConfigDocumentParser {
     }
 
     static private final class ParseContext {
-        private int lineNumber;
         final private Stack<Token> buffer;
         final private Iterator<Token> tokens;
         final private ConfigSyntax flavor;
         final private ConfigOrigin baseOrigin;
+        private final String ExpectingClosingParenthesisError = "expecting a close parentheses ')' here, not: ";
         // this is the number of "equals" we are inside,
         // used to modify the error message to reflect that
         // someone may think this is .properties format.
         int equalsCount;
+        private int lineNumber;
 
         ParseContext(ConfigSyntax flavor, ConfigOrigin origin, Iterator<Token> tokens) {
             lineNumber = 1;
@@ -42,6 +39,25 @@ final class ConfigDocumentParser {
             this.flavor = flavor;
             this.equalsCount = 0;
             this.baseOrigin = origin;
+        }
+
+        private static boolean isIncludeKeyword(Token t) {
+            return Tokens.isUnquotedText(t)
+                    && Tokens.getUnquotedText(t).equals("include");
+        }
+
+        private static boolean isUnquotedWhitespace(Token t) {
+            if (!Tokens.isUnquotedText(t))
+                return false;
+
+            String s = Tokens.getUnquotedText(t);
+
+            for (int i = 0; i < s.length(); ++i) {
+                char c = s.charAt(i);
+                if (!ConfigImplUtil.isWhitespace(c))
+                    return false;
+            }
+            return true;
         }
 
         private Token popToken() {
@@ -148,8 +164,7 @@ final class ConfigDocumentParser {
                     values.add(new ConfigNodeSingleToken(t));
                     t = nextToken();
                     continue;
-                }
-                else if (Tokens.isValue(t) || Tokens.isUnquotedText(t)
+                } else if (Tokens.isValue(t) || Tokens.isUnquotedText(t)
                         || Tokens.isSubstitution(t) || t == Tokens.OPEN_CURLY
                         || t == Tokens.OPEN_SQUARE) {
                     // there may be newlines _within_ the objects and arrays
@@ -175,7 +190,7 @@ final class ConfigDocumentParser {
                 AbstractConfigNodeValue value = null;
                 for (AbstractConfigNode node : values) {
                     if (node instanceof AbstractConfigNodeValue)
-                        value = (AbstractConfigNodeValue)node;
+                        value = (AbstractConfigNodeValue) node;
                     else if (value == null)
                         nodes.add(node);
                     else
@@ -249,7 +264,7 @@ final class ConfigDocumentParser {
                 v = new ConfigNodeSimpleValue(t);
             } else if (t == Tokens.OPEN_CURLY) {
                 v = parseObject(true);
-            } else if (t== Tokens.OPEN_SQUARE) {
+            } else if (t == Tokens.OPEN_SQUARE) {
                 v = parseArray();
             } else {
                 throw parseError(addQuoteSuggestion(t.toString(),
@@ -266,7 +281,7 @@ final class ConfigDocumentParser {
             if (flavor == ConfigSyntax.JSON) {
                 if (Tokens.isValueWithType(token, ConfigValueType.STRING)) {
                     return PathParser.parsePathNodeExpression(Collections.singletonList(token).iterator(),
-                                                              baseOrigin.withLineNumber(lineNumber));
+                            baseOrigin.withLineNumber(lineNumber));
                 } else {
                     throw parseError("Expecting close brace } or a field name here, got "
                             + token);
@@ -285,27 +300,8 @@ final class ConfigDocumentParser {
 
                 putBack(t); // put back the token we ended with
                 return PathParser.parsePathNodeExpression(expression.iterator(),
-                                                          baseOrigin.withLineNumber(lineNumber));
+                        baseOrigin.withLineNumber(lineNumber));
             }
-        }
-
-        private static boolean isIncludeKeyword(Token t) {
-            return Tokens.isUnquotedText(t)
-                    && Tokens.getUnquotedText(t).equals("include");
-        }
-
-        private static boolean isUnquotedWhitespace(Token t) {
-            if (!Tokens.isUnquotedText(t))
-                return false;
-
-            String s = Tokens.getUnquotedText(t);
-
-            for (int i = 0; i < s.length(); ++i) {
-                char c = s.charAt(i);
-                if (!ConfigImplUtil.isWhitespace(c))
-                    return false;
-            }
-            return true;
         }
 
         private boolean isKeyValueSeparatorToken(Token t) {
@@ -316,8 +312,6 @@ final class ConfigDocumentParser {
             }
         }
 
-        private final String ExpectingClosingParenthesisError = "expecting a close parentheses ')' here, not: ";
-
         private ConfigNodeInclude parseInclude(ArrayList<AbstractConfigNode> children) {
 
             Token t = nextTokenCollectingWhitespace(children);
@@ -327,9 +321,9 @@ final class ConfigDocumentParser {
                 String kindText = Tokens.getUnquotedText(t);
 
                 if (kindText.startsWith("required(")) {
-                    String r = kindText.replaceFirst("required\\(","");
-                    if (r.length()>0) {
-                        putBack(Tokens.newUnquotedText(t.origin(),r));
+                    String r = kindText.replaceFirst("required\\(", "");
+                    if (r.length() > 0) {
+                        putBack(Tokens.newUnquotedText(t.origin(), r));
                     }
 
                     children.add(new ConfigNodeSingleToken(t));
@@ -350,8 +344,7 @@ final class ConfigDocumentParser {
                     putBack(t);
                     return parseIncludeResource(children, false);
                 }
-            }
-            else {
+            } else {
                 putBack(t);
                 return parseIncludeResource(children, false);
             }
@@ -380,9 +373,9 @@ final class ConfigDocumentParser {
                     throw parseError("expecting include parameter to be quoted filename, file(), classpath(), or url(). No spaces are allowed before the open paren. Not expecting: "
                             + t);
                 }
-                String r = kindText.replaceFirst("[^(]*\\(","");
-                if (r.length()>0) {
-                    putBack(Tokens.newUnquotedText(t.origin(),r));
+                String r = kindText.replaceFirst("[^(]*\\(", "");
+                if (r.length() > 0) {
+                    putBack(Tokens.newUnquotedText(t.origin(), r));
                 }
 
                 children.add(new ConfigNodeSingleToken(t));
@@ -400,8 +393,8 @@ final class ConfigDocumentParser {
 
                 if (Tokens.isUnquotedText(t) && Tokens.getUnquotedText(t).startsWith(")")) {
                     String rest = Tokens.getUnquotedText(t).substring(1);
-                    if (rest.length()>0) {
-                        putBack(Tokens.newUnquotedText(t.origin(),rest));
+                    if (rest.length() > 0) {
+                        putBack(Tokens.newUnquotedText(t.origin(), rest));
                     }
                     // OK, close paren
                 } else {
@@ -424,7 +417,7 @@ final class ConfigDocumentParser {
             boolean lastInsideEquals = false;
             ArrayList<AbstractConfigNode> objectNodes = new ArrayList<AbstractConfigNode>();
             ArrayList<AbstractConfigNode> keyValueNodes;
-            HashMap<String, Boolean> keys  = new HashMap<String, Boolean>();
+            HashMap<String, Boolean> keys = new HashMap<String, Boolean>();
             if (hadOpenCurly)
                 objectNodes.add(new ConfigNodeSingleToken(Tokens.OPEN_CURLY));
 
@@ -664,7 +657,7 @@ final class ConfigDocumentParser {
             if (t == Tokens.END) {
                 if (missingCurly) {
                     // If there were no braces, the entire document should be treated as a single object
-                    return new ConfigNodeRoot(Collections.singletonList((AbstractConfigNode)new ConfigNodeObject(children)), baseOrigin);
+                    return new ConfigNodeRoot(Collections.singletonList(new ConfigNodeObject(children)), baseOrigin);
                 } else {
                     return new ConfigNodeRoot(children, baseOrigin);
                 }
@@ -698,7 +691,7 @@ final class ConfigDocumentParser {
                     return node;
                 } else {
                     throw parseError("Parsing JSON and the value set in withValueText was either a concatenation or " +
-                                        "had trailing whitespace, newlines, or comments");
+                            "had trailing whitespace, newlines, or comments");
                 }
             } else {
                 putBack(t);

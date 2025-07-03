@@ -32,8 +32,7 @@ final class SubstitutionExpression {
 
     @Override
     public boolean equals(Object other) {
-        if (other instanceof SubstitutionExpression) {
-            SubstitutionExpression otherExp = (SubstitutionExpression) other;
+        if (other instanceof SubstitutionExpression otherExp) {
             return otherExp.path.equals(this.path) && otherExp.optional == this.optional;
         } else {
             return false;

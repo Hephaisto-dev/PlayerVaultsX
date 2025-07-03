@@ -27,6 +27,102 @@ import java.util.logging.Logger;
 
 @SuppressWarnings({"FieldMayBeFinal", "FieldCanBeLocal", "InnerClassMayBeStatic", "unused"})
 public class Config {
+    @Comment("""
+            PlayerVaults
+            Created by: https://github.com/drtshock/PlayerVaults/graphs/contributors/
+            Resource page: https://www.spigotmc.org/resources/51204/
+            Discord server: https://discordapp.com/invite/JZcWDEt/
+            Made with love <3""")
+    private boolean aPleasantHello = true;
+    @Comment("""
+            Debug Mode
+             This will print everything the plugin is doing to console.
+             You should only enable this if you're working with a contributor to fix something.""")
+    private boolean debug = false;
+    @Comment("""
+            Can be 1 through 6.
+            Default: 6""")
+    private int defaultVaultRows = 6;
+    @Comment("""
+            Signs
+             This will determine whether vault signs are enabled.
+             If you don't know what this is or if it's for you, see the resource page.""")
+    private boolean signs = false;
+    @Comment("""
+            Economy
+             These are all of the settings for the economy integration. (Requires Vault)
+              Bypass permission is: playervaults.free""")
+    private Economy economy = new Economy();
+    @Comment("""
+            Blocked Items
+             This will allow you to block specific materials from vaults.
+              Bypass permission is: playervaults.bypassblockeditems""")
+    private Block itemBlocking = new Block();
+    @Comment("""
+            Cleanup
+             Enabling this will purge vaults that haven't been touched in the specified time frame.
+              Reminder: This is only checked during startup.
+                        This will not lag your server or touch the backups folder.""")
+    private PurgePlanet purge = new PurgePlanet();
+    @Comment("Sets the highest vault amount this plugin will test perms for")
+    private int maxVaultAmountPermTest = 99;
+    @Comment("Storage option. Currently only flatfile, but soon more! :)")
+    private Storage storage = new Storage();
+
+    public void setFromConfig(Logger l, FileConfiguration c) {
+        l.info("Importing old configuration...");
+        l.info("debug = " + (this.debug = c.getBoolean("debug", false)));
+        l.info("signs = " + (this.signs = c.getBoolean("signs-enabled", false)));
+        l.info("economy enabled = " + (this.economy.enabled = c.getBoolean("economy.enabled", false)));
+        l.info(" creation fee = " + (this.economy.feeToCreate = c.getDouble("economy.cost-to-create", 100)));
+        l.info(" open fee = " + (this.economy.feeToOpen = c.getDouble("economy.cost-to-open", 10)));
+        l.info(" refund = " + (this.economy.refundOnDelete = c.getDouble("economy.refund-on-delete", 50)));
+        l.info("item blocking enabled = " + (this.itemBlocking.enabled = c.getBoolean("blockitems", true)));
+        l.info("blocked items = " + (this.itemBlocking.list = c.getStringList("blocked-items")));
+        if (this.itemBlocking.list == null) {
+            this.itemBlocking.list = new ArrayList<>();
+            this.itemBlocking.list.add("PUMPKIN");
+            this.itemBlocking.list.add("DIAMOND_BLOCK");
+            l.info(" set defaults: " + this.itemBlocking.list);
+        }
+        l.info("cleanup purge enabled = " + (this.purge.enabled = c.getBoolean("cleanup.enable", false)));
+        l.info(" days since last edit = " + (this.purge.daysSinceLastEdit = c.getInt("cleanup.lastEdit", 30)));
+        l.info("flatfile storage backups = " + (this.storage.flatFile.backups = c.getBoolean("backups.enabled", true)));
+        l.info("max vault amount to test via perms = " + (this.maxVaultAmountPermTest = c.getInt("max-vault-amount-perm-to-test", 99)));
+    }
+
+    public boolean isDebug() {
+        return this.debug;
+    }
+
+    public int getDefaultVaultRows() {
+        return this.defaultVaultRows;
+    }
+
+    public boolean isSigns() {
+        return this.signs;
+    }
+
+    public Economy getEconomy() {
+        return this.economy;
+    }
+
+    public Block getItemBlocking() {
+        return this.itemBlocking;
+    }
+
+    public PurgePlanet getPurge() {
+        return this.purge;
+    }
+
+    public int getMaxVaultAmountPermTest() {
+        return this.maxVaultAmountPermTest;
+    }
+
+    public Storage getStorage() {
+        return this.storage;
+    }
+
     public class Block {
         private boolean enabled = true;
         @Comment("""
@@ -102,17 +198,6 @@ public class Config {
     }
 
     public class Storage {
-        public class FlatFile {
-            @Comment("""
-                    Backups
-                     Enabling this will create backups of vaults automagically.""")
-            private boolean backups = true;
-
-            public boolean isBackups() {
-                return this.backups;
-            }
-        }
-
         private FlatFile flatFile = new FlatFile();
         private String storageType = "flatfile";
 
@@ -123,109 +208,16 @@ public class Config {
         public String getStorageType() {
             return this.storageType;
         }
-    }
 
-    @Comment("""
-            PlayerVaults
-            Created by: https://github.com/drtshock/PlayerVaults/graphs/contributors/
-            Resource page: https://www.spigotmc.org/resources/51204/
-            Discord server: https://discordapp.com/invite/JZcWDEt/
-            Made with love <3""")
-    private boolean aPleasantHello = true;
+        public class FlatFile {
+            @Comment("""
+                    Backups
+                     Enabling this will create backups of vaults automagically.""")
+            private boolean backups = true;
 
-    @Comment("""
-            Debug Mode
-             This will print everything the plugin is doing to console.
-             You should only enable this if you're working with a contributor to fix something.""")
-    private boolean debug = false;
-
-    @Comment("""
-            Can be 1 through 6.
-            Default: 6""")
-    private int defaultVaultRows = 6;
-
-    @Comment("""
-            Signs
-             This will determine whether vault signs are enabled.
-             If you don't know what this is or if it's for you, see the resource page.""")
-    private boolean signs = false;
-
-    @Comment("""
-            Economy
-             These are all of the settings for the economy integration. (Requires Vault)
-              Bypass permission is: playervaults.free""")
-    private Economy economy = new Economy();
-
-    @Comment("""
-            Blocked Items
-             This will allow you to block specific materials from vaults.
-              Bypass permission is: playervaults.bypassblockeditems""")
-    private Block itemBlocking = new Block();
-
-    @Comment("""
-            Cleanup
-             Enabling this will purge vaults that haven't been touched in the specified time frame.
-              Reminder: This is only checked during startup.
-                        This will not lag your server or touch the backups folder.""")
-    private PurgePlanet purge = new PurgePlanet();
-
-    @Comment("Sets the highest vault amount this plugin will test perms for")
-    private int maxVaultAmountPermTest = 99;
-
-    @Comment("Storage option. Currently only flatfile, but soon more! :)")
-    private Storage storage = new Storage();
-
-    public void setFromConfig(Logger l, FileConfiguration c) {
-        l.info("Importing old configuration...");
-        l.info("debug = " + (this.debug = c.getBoolean("debug", false)));
-        l.info("signs = " + (this.signs = c.getBoolean("signs-enabled", false)));
-        l.info("economy enabled = " + (this.economy.enabled = c.getBoolean("economy.enabled", false)));
-        l.info(" creation fee = " + (this.economy.feeToCreate = c.getDouble("economy.cost-to-create", 100)));
-        l.info(" open fee = " + (this.economy.feeToOpen = c.getDouble("economy.cost-to-open", 10)));
-        l.info(" refund = " + (this.economy.refundOnDelete = c.getDouble("economy.refund-on-delete", 50)));
-        l.info("item blocking enabled = " + (this.itemBlocking.enabled = c.getBoolean("blockitems", true)));
-        l.info("blocked items = " + (this.itemBlocking.list = c.getStringList("blocked-items")));
-        if (this.itemBlocking.list == null) {
-            this.itemBlocking.list = new ArrayList<>();
-            this.itemBlocking.list.add("PUMPKIN");
-            this.itemBlocking.list.add("DIAMOND_BLOCK");
-            l.info(" set defaults: " + this.itemBlocking.list);
+            public boolean isBackups() {
+                return this.backups;
+            }
         }
-        l.info("cleanup purge enabled = " + (this.purge.enabled = c.getBoolean("cleanup.enable", false)));
-        l.info(" days since last edit = " + (this.purge.daysSinceLastEdit = c.getInt("cleanup.lastEdit", 30)));
-        l.info("flatfile storage backups = " + (this.storage.flatFile.backups = c.getBoolean("backups.enabled", true)));
-        l.info("max vault amount to test via perms = " + (this.maxVaultAmountPermTest = c.getInt("max-vault-amount-perm-to-test", 99)));
-    }
-
-    public boolean isDebug() {
-        return this.debug;
-    }
-
-    public int getDefaultVaultRows() {
-        return this.defaultVaultRows;
-    }
-
-    public boolean isSigns() {
-        return this.signs;
-    }
-
-    public Economy getEconomy() {
-        return this.economy;
-    }
-
-    public Block getItemBlocking() {
-        return this.itemBlocking;
-    }
-
-    public PurgePlanet getPurge() {
-        return this.purge;
-    }
-
-    public int getMaxVaultAmountPermTest() {
-        return this.maxVaultAmountPermTest;
-    }
-
-    public Storage getStorage() {
-        return this.storage;
     }
 }

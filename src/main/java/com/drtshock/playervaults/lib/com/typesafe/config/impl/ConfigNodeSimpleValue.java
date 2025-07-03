@@ -1,5 +1,5 @@
 /**
- *   Copyright (C) 2015 Typesafe Inc. <http://typesafe.com>
+ * Copyright (C) 2015 Typesafe Inc. <http://typesafe.com>
  */
 package com.drtshock.playervaults.lib.com.typesafe.config.impl;
 
@@ -11,6 +11,7 @@ import java.util.List;
 
 final class ConfigNodeSimpleValue extends AbstractConfigNodeValue {
     final Token token;
+
     ConfigNodeSimpleValue(Token value) {
         token = value;
     }
@@ -20,9 +21,11 @@ final class ConfigNodeSimpleValue extends AbstractConfigNodeValue {
         return Collections.singletonList(token);
     }
 
-    protected Token token() { return token; }
+    Token token() {
+        return token;
+    }
 
-    protected AbstractConfigValue value() {
+    AbstractConfigValue value() {
         if (Tokens.isValue(token))
             return Tokens.getValue(token);
         else if (Tokens.isUnquotedText(token))

@@ -1,14 +1,14 @@
 /**
- *   Copyright (C) 2011-2012 Typesafe Inc. <http://typesafe.com>
+ * Copyright (C) 2011-2012 Typesafe Inc. <http://typesafe.com>
  */
 package com.drtshock.playervaults.lib.com.typesafe.config.impl;
-
-import java.io.ObjectStreamException;
-import java.io.Serializable;
 
 import com.drtshock.playervaults.lib.com.typesafe.config.ConfigOrigin;
 import com.drtshock.playervaults.lib.com.typesafe.config.ConfigRenderOptions;
 import com.drtshock.playervaults.lib.com.typesafe.config.ConfigValueType;
+
+import java.io.ObjectStreamException;
+import java.io.Serializable;
 
 /**
  * This exists because sometimes null is not the same as missing. Specifically,
@@ -16,7 +16,6 @@ import com.drtshock.playervaults.lib.com.typesafe.config.ConfigValueType;
  * where it was set to null) in case someone asks for the value. Also, null
  * overrides values set "earlier" in the search path, while missing values do
  * not.
- *
  */
 final class ConfigNull extends AbstractConfigValue implements Serializable {
 

@@ -10,8 +10,8 @@ import java.io.StringReader;
 import java.util.Iterator;
 
 final class SimpleConfigDocument implements ConfigDocument {
-    private ConfigNodeRoot configNodeTree;
-    private ConfigParseOptions parseOptions;
+    private final ConfigNodeRoot configNodeTree;
+    private final ConfigParseOptions parseOptions;
 
     SimpleConfigDocument(ConfigNodeRoot parsedNode, ConfigParseOptions parseOptions) {
         configNodeTree = parsedNode;

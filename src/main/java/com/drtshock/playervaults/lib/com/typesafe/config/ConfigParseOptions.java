@@ -1,5 +1,5 @@
 /**
- *   Copyright (C) 2011-2012 Typesafe Inc. <http://typesafe.com>
+ * Copyright (C) 2011-2012 Typesafe Inc. <http://typesafe.com>
  */
 package com.drtshock.playervaults.lib.com.typesafe.config;
 
@@ -18,7 +18,6 @@ package com.drtshock.playervaults.lib.com.typesafe.config;
  *         .setSyntax(ConfigSyntax.JSON)
  *         .setAllowMissing(false)
  * </pre>
- *
  */
 public final class ConfigParseOptions {
     final ConfigSyntax syntax;
@@ -28,7 +27,7 @@ public final class ConfigParseOptions {
     final ClassLoader classLoader;
 
     private ConfigParseOptions(ConfigSyntax syntax, String originDescription, boolean allowMissing,
-            ConfigIncluder includer, ClassLoader classLoader) {
+                               ConfigIncluder includer, ClassLoader classLoader) {
         this.syntax = syntax;
         this.originDescription = originDescription;
         this.allowMissing = allowMissing;
@@ -40,6 +39,7 @@ public final class ConfigParseOptions {
      * Gets an instance of <code>ConfigParseOptions</code> with all fields
      * set to the default values. Start with this instance and make any
      * changes you need.
+     *
      * @return the default parse options
      */
     public static ConfigParseOptions defaults() {
@@ -47,11 +47,19 @@ public final class ConfigParseOptions {
     }
 
     /**
+     * Gets the current syntax option, which may be null for "any".
+     *
+     * @return the current syntax or null
+     */
+    public ConfigSyntax getSyntax() {
+        return syntax;
+    }
+
+    /**
      * Set the file format. If set to null, try to guess from any available
      * filename extension; if guessing fails, assume {@link ConfigSyntax#CONF}.
      *
-     * @param syntax
-     *            a syntax or {@code null} for best guess
+     * @param syntax a syntax or {@code null} for best guess
      * @return options with the syntax set
      */
     public ConfigParseOptions setSyntax(ConfigSyntax syntax) {
@@ -63,11 +71,12 @@ public final class ConfigParseOptions {
     }
 
     /**
-     * Gets the current syntax option, which may be null for "any".
-     * @return the current syntax or null
+     * Gets the current origin description, which may be null for "automatic".
+     *
+     * @return the current origin description or null
      */
-    public ConfigSyntax getSyntax() {
-        return syntax;
+    public String getOriginDescription() {
+        return originDescription;
     }
 
     /**
@@ -84,8 +93,7 @@ public final class ConfigParseOptions {
         // findbugs complains about == here but is wrong, do not "fix"
         if (this.originDescription == originDescription)
             return this;
-        else if (this.originDescription != null && originDescription != null
-                && this.originDescription.equals(originDescription))
+        else if (this.originDescription != null && this.originDescription.equals(originDescription))
             return this;
         else
             return new ConfigParseOptions(this.syntax, originDescription, this.allowMissing,
@@ -93,19 +101,22 @@ public final class ConfigParseOptions {
     }
 
     /**
-     * Gets the current origin description, which may be null for "automatic".
-     * @return the current origin description or null
+     * this is package-private, not public API
      */
-    public String getOriginDescription() {
-        return originDescription;
-    }
-
-    /** this is package-private, not public API */
     ConfigParseOptions withFallbackOriginDescription(String originDescription) {
         if (this.originDescription == null)
             return setOriginDescription(originDescription);
         else
             return this;
+    }
+
+    /**
+     * Gets the current "allow missing" flag.
+     *
+     * @return whether we allow missing files
+     */
+    public boolean getAllowMissing() {
+        return allowMissing;
     }
 
     /**
@@ -123,29 +134,6 @@ public final class ConfigParseOptions {
         else
             return new ConfigParseOptions(this.syntax, this.originDescription, allowMissing,
                     this.includer, this.classLoader);
-    }
-
-    /**
-     * Gets the current "allow missing" flag.
-     * @return whether we allow missing files
-     */
-    public boolean getAllowMissing() {
-        return allowMissing;
-    }
-
-    /**
-     * Set a {@link ConfigIncluder} which customizes how includes are handled.
-     * null means to use the default includer.
-     *
-     * @param includer the includer to use or null for default
-     * @return new version of the parse options with different includer
-     */
-    public ConfigParseOptions setIncluder(ConfigIncluder includer) {
-        if (this.includer == includer)
-            return this;
-        else
-            return new ConfigParseOptions(this.syntax, this.originDescription, this.allowMissing,
-                    includer, this.classLoader);
     }
 
     /**
@@ -189,6 +177,7 @@ public final class ConfigParseOptions {
 
     /**
      * Gets the current includer (will be null for the default includer).
+     *
      * @return current includer or null
      */
     public ConfigIncluder getIncluder() {
@@ -196,20 +185,18 @@ public final class ConfigParseOptions {
     }
 
     /**
-     * Set the class loader. If set to null,
-     * <code>Thread.currentThread().getContextClassLoader()</code> will be used.
+     * Set a {@link ConfigIncluder} which customizes how includes are handled.
+     * null means to use the default includer.
      *
-     * @param loader
-     *            a class loader or {@code null} to use thread context class
-     *            loader
-     * @return options with the class loader set
+     * @param includer the includer to use or null for default
+     * @return new version of the parse options with different includer
      */
-    public ConfigParseOptions setClassLoader(ClassLoader loader) {
-        if (this.classLoader == loader)
+    public ConfigParseOptions setIncluder(ConfigIncluder includer) {
+        if (this.includer == includer)
             return this;
         else
             return new ConfigParseOptions(this.syntax, this.originDescription, this.allowMissing,
-                    this.includer, loader);
+                    includer, this.classLoader);
     }
 
     /**
@@ -224,5 +211,21 @@ public final class ConfigParseOptions {
             return Thread.currentThread().getContextClassLoader();
         else
             return this.classLoader;
+    }
+
+    /**
+     * Set the class loader. If set to null,
+     * <code>Thread.currentThread().getContextClassLoader()</code> will be used.
+     *
+     * @param loader a class loader or {@code null} to use thread context class
+     *               loader
+     * @return options with the class loader set
+     */
+    public ConfigParseOptions setClassLoader(ClassLoader loader) {
+        if (this.classLoader == loader)
+            return this;
+        else
+            return new ConfigParseOptions(this.syntax, this.originDescription, this.allowMissing,
+                    this.includer, loader);
     }
 }

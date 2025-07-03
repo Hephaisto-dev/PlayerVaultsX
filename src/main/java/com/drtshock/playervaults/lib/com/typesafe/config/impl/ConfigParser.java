@@ -1,24 +1,14 @@
 /**
- *   Copyright (C) 2011-2012 Typesafe Inc. <http://typesafe.com>
+ * Copyright (C) 2011-2012 Typesafe Inc. <http://typesafe.com>
  */
 package com.drtshock.playervaults.lib.com.typesafe.config.impl;
+
+import com.drtshock.playervaults.lib.com.typesafe.config.*;
 
 import java.io.File;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.ListIterator;
-import java.util.Map;
-
-import com.drtshock.playervaults.lib.com.typesafe.config.ConfigException;
-import com.drtshock.playervaults.lib.com.typesafe.config.ConfigIncludeContext;
-import com.drtshock.playervaults.lib.com.typesafe.config.ConfigOrigin;
-import com.drtshock.playervaults.lib.com.typesafe.config.ConfigParseOptions;
-import com.drtshock.playervaults.lib.com.typesafe.config.ConfigSyntax;
+import java.util.*;
 
 final class ConfigParser {
     static AbstractConfigValue parse(ConfigNodeRoot document,
@@ -30,21 +20,20 @@ final class ConfigParser {
     }
 
     static private final class ParseContext {
-        private int lineNumber;
         final private ConfigNodeRoot document;
         final private FullIncluder includer;
         final private ConfigIncludeContext includeContext;
         final private ConfigSyntax flavor;
         final private ConfigOrigin baseOrigin;
         final private LinkedList<Path> pathStack;
-
         // the number of lists we are inside; this is used to detect the "cannot
         // generate a reference to a list element" problem, and once we fix that
         // problem we should be able to get rid of this variable.
         int arrayCount;
+        private int lineNumber;
 
         ParseContext(ConfigSyntax flavor, ConfigOrigin origin, ConfigNodeRoot document,
-                FullIncluder includer, ConfigIncludeContext includeContext) {
+                     FullIncluder includer, ConfigIncludeContext includeContext) {
             lineNumber = 1;
             this.document = document;
             this.flavor = flavor;
@@ -53,6 +42,42 @@ final class ConfigParser {
             this.includeContext = includeContext;
             this.pathStack = new LinkedList<Path>();
             this.arrayCount = 0;
+        }
+
+        private static AbstractConfigObject createValueUnderPath(Path path,
+                                                                 AbstractConfigValue value) {
+            // for path foo.bar, we are creating
+            // { "foo" : { "bar" : value } }
+            List<String> keys = new ArrayList<String>();
+
+            String key = path.first();
+            Path remaining = path.remainder();
+            while (key != null) {
+                keys.add(key);
+                if (remaining == null) {
+                    break;
+                } else {
+                    key = remaining.first();
+                    remaining = remaining.remainder();
+                }
+            }
+
+            // the withComments(null) is to ensure comments are only
+            // on the exact leaf node they apply to.
+            // a comment before "foo.bar" applies to the full setting
+            // "foo.bar" not also to "foo"
+            ListIterator<String> i = keys.listIterator(keys.size());
+            String deepest = i.previous();
+            AbstractConfigObject o = new SimpleConfigObject(value.origin().withComments(null),
+                    Collections.singletonMap(
+                            deepest, value));
+            while (i.hasPrevious()) {
+                Map<String, AbstractConfigValue> m = Collections.singletonMap(
+                        i.previous(), o);
+                o = new SimpleConfigObject(value.origin().withComments(null), m);
+            }
+
+            return o;
         }
 
         // merge a bunch of adjacent values into one
@@ -68,7 +93,7 @@ final class ConfigParser {
             for (AbstractConfigNode node : n.children()) {
                 AbstractConfigValue v = null;
                 if (node instanceof AbstractConfigNodeValue) {
-                    v = parseValue((AbstractConfigNodeValue)node, null);
+                    v = parseValue((AbstractConfigNodeValue) node, null);
                     values.add(v);
                 }
             }
@@ -104,11 +129,11 @@ final class ConfigParser {
             if (n instanceof ConfigNodeSimpleValue) {
                 v = ((ConfigNodeSimpleValue) n).value();
             } else if (n instanceof ConfigNodeObject) {
-                v = parseObject((ConfigNodeObject)n);
+                v = parseObject((ConfigNodeObject) n);
             } else if (n instanceof ConfigNodeArray) {
-                v = parseArray((ConfigNodeArray)n);
+                v = parseArray((ConfigNodeArray) n);
             } else if (n instanceof ConfigNodeConcatenation) {
-                v = parseConcatenation((ConfigNodeConcatenation)n);
+                v = parseConcatenation((ConfigNodeConcatenation) n);
             } else {
                 throw parseError("Expecting a value but got wrong node type: " + n.getClass());
             }
@@ -122,42 +147,6 @@ final class ConfigParser {
                 throw new ConfigException.BugOrBroken("Bug in config parser: unbalanced array count");
 
             return v;
-        }
-
-        private static AbstractConfigObject createValueUnderPath(Path path,
-                AbstractConfigValue value) {
-            // for path foo.bar, we are creating
-            // { "foo" : { "bar" : value } }
-            List<String> keys = new ArrayList<String>();
-
-            String key = path.first();
-            Path remaining = path.remainder();
-            while (key != null) {
-                keys.add(key);
-                if (remaining == null) {
-                    break;
-                } else {
-                    key = remaining.first();
-                    remaining = remaining.remainder();
-                }
-            }
-
-            // the withComments(null) is to ensure comments are only
-            // on the exact leaf node they apply to.
-            // a comment before "foo.bar" applies to the full setting
-            // "foo.bar" not also to "foo"
-            ListIterator<String> i = keys.listIterator(keys.size());
-            String deepest = i.previous();
-            AbstractConfigObject o = new SimpleConfigObject(value.origin().withComments(null),
-                    Collections.<String, AbstractConfigValue> singletonMap(
-                            deepest, value));
-            while (i.hasPrevious()) {
-                Map<String, AbstractConfigValue> m = Collections.<String, AbstractConfigValue> singletonMap(
-                        i.previous(), o);
-                o = new SimpleConfigObject(value.origin().withComments(null), m);
-            }
-
-            return o;
         }
 
         private void parseInclude(Map<String, AbstractConfigValue> values, ConfigNodeInclude n) {
@@ -238,7 +227,7 @@ final class ConfigParser {
                     }
                     lastWasNewline = true;
                 } else if (flavor != ConfigSyntax.JSON && node instanceof ConfigNodeInclude) {
-                    parseInclude(values, (ConfigNodeInclude)node);
+                    parseInclude(values, (ConfigNodeInclude) node);
                     lastWasNewline = false;
                 } else if (node instanceof ConfigNodeField) {
                     lastWasNewline = false;
@@ -288,13 +277,11 @@ final class ConfigParser {
                     if (i < nodes.size() - 1) {
                         i++;
                         while (i < nodes.size()) {
-                            if (nodes.get(i) instanceof ConfigNodeComment) {
-                                ConfigNodeComment comment = (ConfigNodeComment) nodes.get(i);
+                            if (nodes.get(i) instanceof ConfigNodeComment comment) {
                                 newValue = newValue.withOrigin(newValue.origin().appendComments(
-                                            Collections.singletonList(comment.commentText())));
+                                        Collections.singletonList(comment.commentText())));
                                 break;
-                            } else if (nodes.get(i) instanceof ConfigNodeSingleToken) {
-                                ConfigNodeSingleToken curr = (ConfigNodeSingleToken) nodes.get(i);
+                            } else if (nodes.get(i) instanceof ConfigNodeSingleToken curr) {
                                 if (curr.token() == Tokens.COMMA || Tokens.isIgnoredWhitespace(curr.token())) {
                                     // keep searching, as there could still be a comment
                                 } else {
@@ -324,9 +311,9 @@ final class ConfigParser {
 
                             if (flavor == ConfigSyntax.JSON) {
                                 throw parseError("JSON does not allow duplicate fields: '"
-                                    + key
-                                    + "' was already seen at "
-                                    + existing.origin().description());
+                                        + key
+                                        + "' was already seen at "
+                                        + existing.origin().description());
                             } else {
                                 newValue = newValue.withFallback(existing);
                             }
@@ -383,7 +370,7 @@ final class ConfigParser {
                         values.add(v.withOrigin(v.origin().appendComments(new ArrayList<String>(comments))));
                         comments.clear();
                     }
-                    v = parseValue((AbstractConfigNodeValue)node, comments);
+                    v = parseValue((AbstractConfigNodeValue) node, comments);
                 }
             }
             // There shouldn't be any comments at this point, but add them just in case
@@ -416,7 +403,7 @@ final class ConfigParser {
                         lastWasNewLine = true;
                     }
                 } else if (node instanceof ConfigNodeComplexValue) {
-                    result = parseValue((ConfigNodeComplexValue)node, comments);
+                    result = parseValue((ConfigNodeComplexValue) node, comments);
                     lastWasNewLine = false;
                 }
             }

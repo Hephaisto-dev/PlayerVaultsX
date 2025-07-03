@@ -27,20 +27,13 @@ import org.bukkit.inventory.ItemStack;
 import java.util.List;
 
 public class BlacklistedItemEvent extends Event implements Cancellable {
-    public enum Reason {
-        ENCHANTMENT,
-        HAS_MODEL_DATA,
-        HAS_NO_MODEL_DATA,
-        TYPE;
-    }
-
     private static final HandlerList handlers = new HandlerList();
-    private boolean isCancelled;
     private final ItemStack item;
     private final String owner;
     private final int vaultNumber;
     private final Player player;
     private final List<Reason> reasons;
+    private boolean isCancelled;
 
     public BlacklistedItemEvent(Player player, ItemStack item, List<Reason> reasons, String owner, int vaultNumber) {
         this.player = player;
@@ -48,6 +41,10 @@ public class BlacklistedItemEvent extends Event implements Cancellable {
         this.reasons = reasons;
         this.owner = owner;
         this.vaultNumber = vaultNumber;
+    }
+
+    public static HandlerList getHandlerList() {
+        return handlers;
     }
 
     /**
@@ -120,7 +117,10 @@ public class BlacklistedItemEvent extends Event implements Cancellable {
         return handlers;
     }
 
-    public static HandlerList getHandlerList() {
-        return handlers;
+    public enum Reason {
+        ENCHANTMENT,
+        HAS_MODEL_DATA,
+        HAS_NO_MODEL_DATA,
+        TYPE
     }
 }

@@ -25,7 +25,6 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.Plugin;
-import org.bukkit.util.io.BukkitObjectInputStream;
 
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
@@ -43,7 +42,7 @@ public class AxVaults2Converter implements Converter {
     @Override
     public int run(CommandSender initiator) {
         PlayerVaults plugin = PlayerVaults.getInstance();
-        VaultManager vaultManager = VaultManager.getInstance();
+        VaultManager vaultManager = plugin.getVaultManager();
 
         Plugin axVaultsPlugin = plugin.getServer().getPluginManager().getPlugin("AxVaults");
         Object database;

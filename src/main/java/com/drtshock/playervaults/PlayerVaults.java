@@ -18,13 +18,7 @@
 
 package com.drtshock.playervaults;
 
-import com.drtshock.playervaults.commands.ConsoleCommand;
-import com.drtshock.playervaults.commands.ConvertCommand;
-import com.drtshock.playervaults.commands.DeleteCommand;
-import com.drtshock.playervaults.commands.HelpMeCommand;
-import com.drtshock.playervaults.commands.SignCommand;
-import com.drtshock.playervaults.commands.SignSetInfo;
-import com.drtshock.playervaults.commands.VaultCommand;
+import com.drtshock.playervaults.commands.*;
 import com.drtshock.playervaults.config.Loader;
 import com.drtshock.playervaults.config.file.Config;
 import com.drtshock.playervaults.config.file.Translation;
@@ -38,16 +32,15 @@ import com.drtshock.playervaults.util.Permission;
 import com.drtshock.playervaults.vaultmanagement.EconomyOperations;
 import com.drtshock.playervaults.vaultmanagement.VaultManager;
 import com.drtshock.playervaults.vaultmanagement.VaultViewInfo;
+import com.drtshock.playervaults.vaultmanagement.storage.MySQLVaultStorage;
+import com.drtshock.playervaults.vaultmanagement.storage.VaultStorage;
+import com.drtshock.playervaults.vaultmanagement.storage.YamlVaultStorage;
 import com.google.gson.Gson;
-import net.kyori.adventure.audience.Audience;
+import dev.kitteh.cardboardbox.CardboardBox;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.TextColor;
 import net.kyori.adventure.text.minimessage.MiniMessage;
-import org.bukkit.Bukkit;
-import org.bukkit.ChatColor;
-import org.bukkit.Material;
-import org.bukkit.OfflinePlayer;
-import org.bukkit.Registry;
+import org.bukkit.*;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.configuration.InvalidConfigurationException;
@@ -60,16 +53,9 @@ import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
-import dev.kitteh.cardboardbox.CardboardBox;
 import sun.misc.Unsafe;
 
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.OutputStream;
-import java.io.PrintWriter;
-import java.io.StringWriter;
+import java.io.*;
 import java.lang.reflect.Field;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -79,13 +65,7 @@ import java.nio.file.Path;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Supplier;
@@ -103,6 +83,10 @@ public class PlayerVaults extends JavaPlugin {
     private final HashMap<String, Inventory> openInventories = new HashMap<>();
     private final Set<Material> blockedMats = new HashSet<>();
     private final Set<Enchantment> blockedEnchs = new HashSet<>();
+    private final Config config = new Config();
+    private final Translation translation = new Translation(this);
+    private final List<String> exceptions = new CopyOnWriteArrayList<>();
+    private final Set<UUID> told = new HashSet<>();
     private boolean blockWithModelData = false;
     private boolean blockWithoutModelData = false;
     private boolean useVault;
@@ -116,11 +100,9 @@ public class PlayerVaults extends JavaPlugin {
     private String _versionString;
     private int maxVaultAmountPermTest;
     private Metrics metrics;
-    private final Config config = new Config();
-    private final Translation translation = new Translation(this);
-    private final List<String> exceptions = new CopyOnWriteArrayList<>();
     private String updateCheck;
     private Response updateResponse;
+    private VaultManager vaultManager;
 
     public static PlayerVaults getInstance() {
         return instance;
@@ -157,7 +139,7 @@ public class PlayerVaults extends JavaPlugin {
         time = System.currentTimeMillis();
         vaultData = new File(this.getDataFolder(), "newvaults");
         Conversion.convert(this);
-        new VaultManager(this);
+        setupVaultManager();
         debug("conversion", time);
         time = System.currentTimeMillis();
         debug("uuidvaultmanager", time);
@@ -334,6 +316,27 @@ public class PlayerVaults extends JavaPlugin {
         }.runTaskTimerAsynchronously(this, 1, 20 /* ticks */ * 60 /* seconds in a minute */ * 60 /* minutes in an hour*/);
     }
 
+    private void setupVaultManager() {
+        String storageType = getConfig().getString("storage", "yaml");
+        VaultStorage storage;
+        if ("mysql".equalsIgnoreCase(storageType)) {
+            // Read MySQL parameters from config
+            String host = getConfig().getString("mysql.host");
+            int port = getConfig().getInt("mysql.port");
+            String database = getConfig().getString("mysql.database");
+            String username = getConfig().getString("mysql.username");
+            String password = getConfig().getString("mysql.password");
+            storage = new MySQLVaultStorage(host, port, database, username, password);
+        } else {
+            storage = new YamlVaultStorage();
+        }
+        this.vaultManager = new VaultManager(this, storage);
+    }
+
+    public VaultManager getVaultManager() {
+        return vaultManager;
+    }
+
     private void metricsLine(String name, Callable<Integer> callable) {
         this.metrics.addCustomChart(new Metrics.SingleLineChart(name, callable));
     }
@@ -365,7 +368,7 @@ public class PlayerVaults extends JavaPlugin {
                 Inventory inventory = player.getOpenInventory().getTopInventory();
                 if (inventory.getViewers().size() == 1) {
                     VaultViewInfo info = this.inVault.get(player.getUniqueId().toString());
-                    VaultManager.getInstance().saveVault(inventory, player.getUniqueId().toString(), info.getNumber());
+                    vaultManager.saveVault(inventory, player.getUniqueId().toString(), info.getNumber());
                     this.openInventories.remove(info.toString());
                     // try this to make sure that they can't make further edits if the process hangs.
                     player.closeInventory();
@@ -678,11 +681,43 @@ public class PlayerVaults extends JavaPlugin {
         return builder.toString();
     }
 
+    public void updateNotification(Player player) {
+        if (updateResponse == null || !player.hasPermission(Permission.ADMIN)) {
+            return;
+        }
+        if (!updateResponse.isUrgent() && this.told.contains(player.getUniqueId())) {
+            return;
+        }
+        this.told.add(player.getUniqueId());
+        ComponentDispatcher.send(player, Component.text().color(TextColor.fromHexString("#e35959"))
+                .content("PlayerVaultsX Update Available: " + updateResponse.getLatestVersion()));
+        if (updateResponse.isUrgent()) {
+            ComponentDispatcher.send(player, Component.text().color(TextColor.fromHexString("#5E0B15"))
+                    .content("This is an important update. Download and restart ASAP."));
+        }
+        if (updateResponse.getComponent() != null) {
+            ComponentDispatcher.send(player, updateResponse.getComponent());
+        }
+    }
+
+    public <T extends Throwable> T addException(T t) {
+        if (this.getConf().isDebug()) {
+            StringBuilder builder = new StringBuilder();
+            builder.append(ZonedDateTime.now(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("uuuu/MM/dd HH:mm:ss"))).append('\n');
+            StringWriter stringWriter = new StringWriter();
+            PrintWriter printWriter = new PrintWriter(stringWriter);
+            t.printStackTrace(printWriter);
+            builder.append(stringWriter);
+            this.exceptions.add(builder.toString());
+        }
+        return t;
+    }
+
     private static class UpdateCheck {
-        private String pluginName;
-        private String pluginVersion;
-        private String serverName;
-        private String serverVersion;
+        private final String pluginName;
+        private final String pluginVersion;
+        private final String serverName;
+        private final String serverVersion;
         private int meow;
         private String spigotId;
 
@@ -729,39 +764,5 @@ public class PlayerVaults extends JavaPlugin {
             }
             return component;
         }
-    }
-
-    private final Set<UUID> told = new HashSet<>();
-
-    public void updateNotification(Player player) {
-        if (updateResponse == null || !player.hasPermission(Permission.ADMIN)) {
-            return;
-        }
-        if (!updateResponse.isUrgent() && this.told.contains(player.getUniqueId())) {
-            return;
-        }
-        this.told.add(player.getUniqueId());
-        ComponentDispatcher.send(player, Component.text().color(TextColor.fromHexString("#e35959"))
-                .content("PlayerVaultsX Update Available: " + updateResponse.getLatestVersion()));
-        if (updateResponse.isUrgent()) {
-            ComponentDispatcher.send(player, Component.text().color(TextColor.fromHexString("#5E0B15"))
-                    .content("This is an important update. Download and restart ASAP."));
-        }
-        if (updateResponse.getComponent() != null) {
-            ComponentDispatcher.send(player, updateResponse.getComponent());
-        }
-    }
-
-    public <T extends Throwable> T addException(T t) {
-        if (this.getConf().isDebug()) {
-            StringBuilder builder = new StringBuilder();
-            builder.append(ZonedDateTime.now(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("uuuu/MM/dd HH:mm:ss"))).append('\n');
-            StringWriter stringWriter = new StringWriter();
-            PrintWriter printWriter = new PrintWriter(stringWriter);
-            t.printStackTrace(printWriter);
-            builder.append(stringWriter.toString());
-            this.exceptions.add(builder.toString());
-        }
-        return t;
     }
 }

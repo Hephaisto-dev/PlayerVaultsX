@@ -19,7 +19,6 @@
 package com.drtshock.playervaults.listeners;
 
 import com.drtshock.playervaults.PlayerVaults;
-import com.drtshock.playervaults.vaultmanagement.VaultManager;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
@@ -30,9 +29,6 @@ import org.bukkit.scheduler.BukkitRunnable;
 import java.util.UUID;
 
 public class VaultPreloadListener implements Listener {
-
-    final VaultManager vm = VaultManager.getInstance();
-
     @EventHandler(priority = EventPriority.MONITOR)
     public void onPlayerJoin(PlayerJoinEvent event) {
         PlayerVaults.getInstance().updateNotification(event.getPlayer());
@@ -40,13 +36,13 @@ public class VaultPreloadListener implements Listener {
         new BukkitRunnable() {
             @Override
             public void run() {
-                vm.cachePlayerVaultFile(uuid.toString());
+                PlayerVaults.getInstance().getVaultManager().cachePlayerVault(uuid.toString());
             }
         }.runTaskAsynchronously(PlayerVaults.getInstance());
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onPlayerQuit(PlayerQuitEvent event) {
-        vm.removeCachedPlayerVaultFile(event.getPlayer().getUniqueId().toString());
+        PlayerVaults.getInstance().getVaultManager().removeCachedPlayerVault(event.getPlayer().getUniqueId().toString());
     }
 }

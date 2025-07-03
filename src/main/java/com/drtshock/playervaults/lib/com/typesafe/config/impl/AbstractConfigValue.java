@@ -1,27 +1,16 @@
 /**
- *   Copyright (C) 2011-2012 Typesafe Inc. <http://typesafe.com>
+ * Copyright (C) 2011-2012 Typesafe Inc. <http://typesafe.com>
  */
 package com.drtshock.playervaults.lib.com.typesafe.config.impl;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
+import com.drtshock.playervaults.lib.com.typesafe.config.*;
 
-import com.drtshock.playervaults.lib.com.typesafe.config.ConfigException;
-import com.drtshock.playervaults.lib.com.typesafe.config.ConfigMergeable;
-import com.drtshock.playervaults.lib.com.typesafe.config.ConfigObject;
-import com.drtshock.playervaults.lib.com.typesafe.config.ConfigOrigin;
-import com.drtshock.playervaults.lib.com.typesafe.config.ConfigRenderOptions;
-import com.drtshock.playervaults.lib.com.typesafe.config.ConfigValue;
+import java.util.*;
 
 /**
- *
  * Trying very hard to avoid a parent reference in config values; when you have
  * a tree like this, the availability of parent() tends to result in a lot of
  * improperly-factored and non-modular code. Please don't add parent().
- *
  */
 abstract class AbstractConfigValue implements ConfigValue, MergeableValue {
 
@@ -31,58 +20,8 @@ abstract class AbstractConfigValue implements ConfigValue, MergeableValue {
         this.origin = (SimpleConfigOrigin) origin;
     }
 
-    @Override
-    public SimpleConfigOrigin origin() {
-        return this.origin;
-    }
-
-    /**
-     * This exception means that a value is inherently not resolveable, at the
-     * moment the only known cause is a cycle of substitutions. This is a
-     * checked exception since it's internal to the library and we want to be
-     * sure we handle it before passing it out to public API. This is only
-     * supposed to be thrown by the target of a cyclic reference and it's
-     * supposed to be caught by the ConfigReference looking up that reference,
-     * so it should be impossible for an outermost resolve() to throw this.
-     *
-     * Contrast with ConfigException.NotResolved which just means nobody called
-     * resolve().
-     */
-    static class NotPossibleToResolve extends Exception {
-        private static final long serialVersionUID = 1L;
-
-        final private String traceString;
-
-        NotPossibleToResolve(ResolveContext context) {
-            super("was not possible to resolve");
-            this.traceString = context.traceString();
-        }
-
-        String traceString() {
-            return traceString;
-        }
-    }
-
-    /**
-     * Called only by ResolveContext.resolve().
-     *
-     * @param context
-     *            state of the current resolve
-     * @param source
-     *            where to look up values
-     * @return a new value if there were changes, or this if no changes
-     */
-    ResolveResult<? extends AbstractConfigValue> resolveSubstitutions(ResolveContext context, ResolveSource source)
-            throws NotPossibleToResolve {
-        return ResolveResult.make(context, this);
-    }
-
-    ResolveStatus resolveStatus() {
-        return ResolveStatus.RESOLVED;
-    }
-
     protected static List<AbstractConfigValue> replaceChildInList(List<AbstractConfigValue> list,
-            AbstractConfigValue child, AbstractConfigValue replacement) {
+                                                                  AbstractConfigValue child, AbstractConfigValue replacement) {
         int i = 0;
         while (i < list.size() && list.get(i) != child)
             ++i;
@@ -113,6 +52,37 @@ abstract class AbstractConfigValue implements ConfigValue, MergeableValue {
         return false;
     }
 
+    protected static void indent(StringBuilder sb, int indent, ConfigRenderOptions options) {
+        if (options.getFormatted()) {
+            int remaining = indent;
+            while (remaining > 0) {
+                sb.append("    ");
+                --remaining;
+            }
+        }
+    }
+
+    @Override
+    public SimpleConfigOrigin origin() {
+        return this.origin;
+    }
+
+    /**
+     * Called only by ResolveContext.resolve().
+     *
+     * @param context state of the current resolve
+     * @param source  where to look up values
+     * @return a new value if there were changes, or this if no changes
+     */
+    ResolveResult<? extends AbstractConfigValue> resolveSubstitutions(ResolveContext context, ResolveSource source)
+            throws NotPossibleToResolve {
+        return ResolveResult.make(context, this);
+    }
+
+    ResolveStatus resolveStatus() {
+        return ResolveStatus.RESOLVED;
+    }
+
     /**
      * This is used when including one file in another; the included file is
      * relativized to the path it's included into in the parent file. The point
@@ -123,32 +93,10 @@ abstract class AbstractConfigValue implements ConfigValue, MergeableValue {
      *
      * @param prefix
      * @return value relativized to the given path or the same value if nothing
-     *         to do
+     * to do
      */
     AbstractConfigValue relativized(Path prefix) {
         return this;
-    }
-
-    protected interface Modifier {
-        // keyOrNull is null for non-objects
-        AbstractConfigValue modifyChildMayThrow(String keyOrNull, AbstractConfigValue v)
-                throws Exception;
-    }
-
-    protected abstract class NoExceptionsModifier implements Modifier {
-        @Override
-        public final AbstractConfigValue modifyChildMayThrow(String keyOrNull, AbstractConfigValue v)
-                throws Exception {
-            try {
-                return modifyChild(keyOrNull, v);
-            } catch (RuntimeException e) {
-                throw e;
-            } catch(Exception e) {
-                throw new ConfigException.BugOrBroken("Unexpected exception", e);
-            }
-        }
-
-        abstract AbstractConfigValue modifyChild(String keyOrNull, AbstractConfigValue v);
     }
 
     @Override
@@ -185,7 +133,7 @@ abstract class AbstractConfigValue implements ConfigValue, MergeableValue {
     }
 
     protected AbstractConfigValue constructDelayedMerge(ConfigOrigin origin,
-            List<AbstractConfigValue> stack) {
+                                                        List<AbstractConfigValue> stack) {
         return new ConfigDelayedMerge(origin, stack);
     }
 
@@ -202,7 +150,7 @@ abstract class AbstractConfigValue implements ConfigValue, MergeableValue {
     }
 
     private final AbstractConfigValue delayMerge(Collection<AbstractConfigValue> stack,
-            AbstractConfigValue fallback) {
+                                                 AbstractConfigValue fallback) {
         // if we turn out to be an object, and the fallback also does,
         // then a merge may be required.
         // if we contain a substitution, resolving it may need to look
@@ -214,7 +162,7 @@ abstract class AbstractConfigValue implements ConfigValue, MergeableValue {
     }
 
     protected final AbstractConfigValue mergedWithObject(Collection<AbstractConfigValue> stack,
-            AbstractConfigObject fallback) {
+                                                         AbstractConfigObject fallback) {
         requireNotIgnoringFallbacks();
 
         if (this instanceof AbstractConfigObject)
@@ -224,7 +172,7 @@ abstract class AbstractConfigValue implements ConfigValue, MergeableValue {
     }
 
     protected final AbstractConfigValue mergedWithNonObject(Collection<AbstractConfigValue> stack,
-            AbstractConfigValue fallback) {
+                                                            AbstractConfigValue fallback) {
         requireNotIgnoringFallbacks();
 
         if (resolveStatus() == ResolveStatus.RESOLVED) {
@@ -293,9 +241,9 @@ abstract class AbstractConfigValue implements ConfigValue, MergeableValue {
         if (other instanceof ConfigValue) {
             return canEqual(other)
                     && (this.valueType() ==
-                            ((ConfigValue) other).valueType())
+                    ((ConfigValue) other).valueType())
                     && ConfigImplUtil.equalsHandlingNull(this.unwrapped(),
-                            ((ConfigValue) other).unwrapped());
+                    ((ConfigValue) other).unwrapped());
         } else {
             return false;
         }
@@ -315,17 +263,7 @@ abstract class AbstractConfigValue implements ConfigValue, MergeableValue {
     public String toString() {
         StringBuilder sb = new StringBuilder();
         render(sb, 0, true /* atRoot */, null /* atKey */, ConfigRenderOptions.concise());
-        return getClass().getSimpleName() + "(" + sb.toString() + ")";
-    }
-
-    protected static void indent(StringBuilder sb, int indent, ConfigRenderOptions options) {
-        if (options.getFormatted()) {
-            int remaining = indent;
-            while (remaining > 0) {
-                sb.append("    ");
-                --remaining;
-            }
-        }
+        return getClass().getSimpleName() + "(" + sb + ")";
     }
 
     protected void render(StringBuilder sb, int indent, boolean atRoot, String atKey, ConfigRenderOptions options) {
@@ -407,5 +345,54 @@ abstract class AbstractConfigValue implements ConfigValue, MergeableValue {
     public SimpleConfig atPath(String pathExpression) {
         SimpleConfigOrigin origin = SimpleConfigOrigin.newSimple("atPath(" + pathExpression + ")");
         return atPath(origin, Path.newPath(pathExpression));
+    }
+
+    protected interface Modifier {
+        // keyOrNull is null for non-objects
+        AbstractConfigValue modifyChildMayThrow(String keyOrNull, AbstractConfigValue v)
+                throws Exception;
+    }
+
+    /**
+     * This exception means that a value is inherently not resolveable, at the
+     * moment the only known cause is a cycle of substitutions. This is a
+     * checked exception since it's internal to the library and we want to be
+     * sure we handle it before passing it out to public API. This is only
+     * supposed to be thrown by the target of a cyclic reference and it's
+     * supposed to be caught by the ConfigReference looking up that reference,
+     * so it should be impossible for an outermost resolve() to throw this.
+     * <p>
+     * Contrast with ConfigException.NotResolved which just means nobody called
+     * resolve().
+     */
+    static class NotPossibleToResolve extends Exception {
+        private static final long serialVersionUID = 1L;
+
+        final private String traceString;
+
+        NotPossibleToResolve(ResolveContext context) {
+            super("was not possible to resolve");
+            this.traceString = context.traceString();
+        }
+
+        String traceString() {
+            return traceString;
+        }
+    }
+
+    protected abstract class NoExceptionsModifier implements Modifier {
+        @Override
+        public final AbstractConfigValue modifyChildMayThrow(String keyOrNull, AbstractConfigValue v)
+                throws Exception {
+            try {
+                return modifyChild(keyOrNull, v);
+            } catch (RuntimeException e) {
+                throw e;
+            } catch (Exception e) {
+                throw new ConfigException.BugOrBroken("Unexpected exception", e);
+            }
+        }
+
+        abstract AbstractConfigValue modifyChild(String keyOrNull, AbstractConfigValue v);
     }
 }

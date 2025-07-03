@@ -38,6 +38,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class VaultOperations {
 
     private static final AtomicBoolean LOCKED = new AtomicBoolean(false);
+    private static final int secondsToLive = 2;
+    private static final Map<UUID, PlayerCount> countCache = new ConcurrentHashMap<>();
 
     /**
      * Gets whether or not player vaults are locked
@@ -125,7 +127,7 @@ public class VaultOperations {
      * Open a player's own vault.
      *
      * @param player The player to open to.
-     * @param arg The vault number to open.
+     * @param arg    The vault number to open.
      * @return Whether or not the player was allowed to open it.
      */
     public static boolean openOwnVault(Player player, String arg) {
@@ -156,7 +158,7 @@ public class VaultOperations {
 
         if (checkPerms(player, number)) {
             if (free || EconomyOperations.payToOpen(player, number)) {
-                Inventory inv = VaultManager.getInstance().loadOwnVault(player, number, getMaxVaultSize(player));
+                Inventory inv = PlayerVaults.getInstance().getVaultManager().loadOwnVault(player, number, getMaxVaultSize(player));
                 if (inv == null) {
                     PlayerVaults.debug(String.format("Failed to open null vault %d for %s. This is weird.", number, player.getName()));
                     return false;
@@ -190,8 +192,8 @@ public class VaultOperations {
     /**
      * Open a player's own vault. If player is using a command, they'll need the required permission.
      *
-     * @param player The player to open to.
-     * @param arg The vault number to open.
+     * @param player    The player to open to.
+     * @param arg       The vault number to open.
      * @param isCommand - if player is opening via a command or not.
      * @return Whether or not the player was allowed to open it.
      */
@@ -206,9 +208,9 @@ public class VaultOperations {
     /**
      * Open another player's vault.
      *
-     * @param player The player to open to.
+     * @param player     The player to open to.
      * @param vaultOwner The name of the vault owner.
-     * @param arg The vault number to open.
+     * @param arg        The vault number to open.
      * @return Whether or not the player was allowed to open it.
      */
     public static boolean openOtherVault(Player player, String vaultOwner, String arg) {
@@ -237,7 +239,7 @@ public class VaultOperations {
             PlayerVaults.getInstance().getTL().mustBeNumber().title().send(player);
         }
 
-        Inventory inv = VaultManager.getInstance().loadOtherVault(vaultOwner, number, getMaxVaultSize(vaultOwner));
+        Inventory inv = PlayerVaults.getInstance().getVaultManager().loadOtherVault(vaultOwner, number, getMaxVaultSize(vaultOwner));
         String name = vaultOwner;
         try {
             OfflinePlayer offlinePlayer = Bukkit.getOfflinePlayer(UUID.fromString(vaultOwner));
@@ -276,7 +278,7 @@ public class VaultOperations {
      * Delete a player's own vault.
      *
      * @param player The player to delete.
-     * @param arg The vault number to delete.
+     * @param arg    The vault number to delete.
      */
     public static void deleteOwnVault(Player player, String arg) {
         if (isLocked()) {
@@ -295,7 +297,7 @@ public class VaultOperations {
             }
 
             if (EconomyOperations.refundOnDelete(player, number)) {
-                VaultManager.getInstance().deleteVault(player, player.getUniqueId().toString(), number);
+                PlayerVaults.getInstance().getVaultManager().deleteVault(player, player.getUniqueId().toString(), number);
                 PlayerVaults.getInstance().getTL().deleteVault().title().with("vault", arg).send(player);
             }
 
@@ -309,7 +311,7 @@ public class VaultOperations {
      *
      * @param sender The sender executing the deletion.
      * @param holder The user to whom the deleted vault belongs.
-     * @param arg The vault number to delete.
+     * @param arg    The vault number to delete.
      */
     public static void deleteOtherVault(CommandSender sender, String holder, String arg) {
         if (isLocked()) {
@@ -328,7 +330,7 @@ public class VaultOperations {
                     PlayerVaults.getInstance().getTL().mustBeNumber().title().send(sender);
                 }
 
-                VaultManager.getInstance().deleteVault(sender, holder, number);
+                PlayerVaults.getInstance().getVaultManager().deleteVault(sender, holder, number);
                 PlayerVaults.getInstance().getTL().deleteOtherVault().title().with("vault", arg).with("player", holder).send(sender);
             } else {
                 PlayerVaults.getInstance().getTL().mustBeNumber().title().send(sender);
@@ -350,7 +352,7 @@ public class VaultOperations {
         }
 
         if (sender.hasPermission(Permission.DELETE_ALL)) {
-            VaultManager.getInstance().deleteAllVaults(holder);
+            PlayerVaults.getInstance().getVaultManager().deleteAllVaults(holder);
             PlayerVaults.getInstance().getLogger().info(String.format("%s deleted ALL vaults belonging to %s", sender.getName(), holder));
         } else {
             PlayerVaults.getInstance().getTL().noPerms().title().send(sender);
@@ -365,13 +367,6 @@ public class VaultOperations {
             return false;
         }
     }
-
-    private record PlayerCount(int count, Instant time) {
-    }
-
-    private static Map<UUID, PlayerCount> countCache = new ConcurrentHashMap<>();
-
-    private static final int secondsToLive = 2;
 
     public static int countVaults(Player player) {
         UUID uuid = player.getUniqueId();
@@ -393,5 +388,8 @@ public class VaultOperations {
             }
         }, 20 * secondsToLive + 1);
         return vaultCount;
+    }
+
+    private record PlayerCount(int count, Instant time) {
     }
 }

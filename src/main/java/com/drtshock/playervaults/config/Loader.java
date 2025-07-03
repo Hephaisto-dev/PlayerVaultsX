@@ -22,12 +22,7 @@ import com.drtshock.playervaults.config.annotation.Comment;
 import com.drtshock.playervaults.config.annotation.ConfigName;
 import com.drtshock.playervaults.config.annotation.WipeOnReload;
 import com.drtshock.playervaults.config.file.Translation;
-import com.drtshock.playervaults.lib.com.typesafe.config.Config;
-import com.drtshock.playervaults.lib.com.typesafe.config.ConfigFactory;
-import com.drtshock.playervaults.lib.com.typesafe.config.ConfigRenderOptions;
-import com.drtshock.playervaults.lib.com.typesafe.config.ConfigValue;
-import com.drtshock.playervaults.lib.com.typesafe.config.ConfigValueFactory;
-import com.drtshock.playervaults.lib.com.typesafe.config.ConfigValueType;
+import com.drtshock.playervaults.lib.com.typesafe.config.*;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
@@ -38,16 +33,27 @@ import java.lang.reflect.Modifier;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 public class Loader {
+    private static final Set<Class<?>> types = new HashSet<>();
+
+    static {
+        Loader.types.add(Boolean.TYPE);
+        Loader.types.add(Byte.TYPE);
+        Loader.types.add(Character.TYPE);
+        Loader.types.add(Double.TYPE);
+        Loader.types.add(Float.TYPE);
+        Loader.types.add(Integer.TYPE);
+        Loader.types.add(Long.TYPE);
+        Loader.types.add(Short.TYPE);
+        Loader.types.add(List.class);
+        Loader.types.add(Map.class);
+        Loader.types.add(Set.class);
+        Loader.types.add(String.class);
+        Loader.types.add(Translation.TL.class);
+    }
+
     public static void loadAndSave(@NonNull String fileName, @NonNull Object config) throws IOException, IllegalAccessException {
         File file = Loader.getFile(fileName);
         Loader.loadAndSave(file, Loader.getConf(file), config);
@@ -74,24 +80,6 @@ public class Loader {
 
     public static @NonNull ConfigValue load(Config config, Object configObject) throws IllegalAccessException {
         return Loader.loadNode(config, configObject);
-    }
-
-    private static final Set<Class<?>> types = new HashSet<>();
-
-    static {
-        Loader.types.add(Boolean.TYPE);
-        Loader.types.add(Byte.TYPE);
-        Loader.types.add(Character.TYPE);
-        Loader.types.add(Double.TYPE);
-        Loader.types.add(Float.TYPE);
-        Loader.types.add(Integer.TYPE);
-        Loader.types.add(Long.TYPE);
-        Loader.types.add(Short.TYPE);
-        Loader.types.add(List.class);
-        Loader.types.add(Map.class);
-        Loader.types.add(Set.class);
-        Loader.types.add(String.class);
-        Loader.types.add(Translation.TL.class);
     }
 
     private static @NonNull ConfigValue loadNode(@NonNull Config config, @NonNull Object object) throws IllegalAccessException {

@@ -1,5 +1,5 @@
 /**
- *   Copyright (C) 2015 Typesafe Inc. <http://typesafe.com>
+ * Copyright (C) 2015 Typesafe Inc. <http://typesafe.com>
  */
 package com.drtshock.playervaults.lib.com.typesafe.config.impl;
 
@@ -9,8 +9,9 @@ import java.util.ArrayList;
 import java.util.Collection;
 
 final class ConfigNodePath extends AbstractConfigNode {
-    final private Path path;
     final ArrayList<Token> tokens;
+    final private Path path;
+
     ConfigNodePath(Path path, Collection<Token> tokens) {
         this.path = path;
         this.tokens = new ArrayList<Token>(tokens);
@@ -21,11 +22,11 @@ final class ConfigNodePath extends AbstractConfigNode {
         return tokens;
     }
 
-    protected Path value() {
+    Path value() {
         return path;
     }
 
-    protected ConfigNodePath subPath(int toRemove) {
+    ConfigNodePath subPath(int toRemove) {
         int periodCount = 0;
         ArrayList<Token> tokensCopy = new ArrayList<Token>(tokens);
         for (int i = 0; i < tokensCopy.size(); i++) {
@@ -40,7 +41,7 @@ final class ConfigNodePath extends AbstractConfigNode {
         throw new ConfigException.BugOrBroken("Tried to remove too many elements from a Path node");
     }
 
-    protected ConfigNodePath first() {
+    ConfigNodePath first() {
         ArrayList<Token> tokensCopy = new ArrayList<Token>(tokens);
         for (int i = 0; i < tokensCopy.size(); i++) {
             if (Tokens.isUnquotedText(tokensCopy.get(i)) &&

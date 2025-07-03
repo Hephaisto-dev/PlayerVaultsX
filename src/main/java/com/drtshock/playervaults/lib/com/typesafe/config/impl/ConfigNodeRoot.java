@@ -20,16 +20,16 @@ final class ConfigNodeRoot extends ConfigNodeComplexValue {
         throw new ConfigException.BugOrBroken("Tried to indent the root object");
     }
 
-    protected ConfigNodeComplexValue value() {
+    private ConfigNodeComplexValue value() {
         for (AbstractConfigNode node : children) {
             if (node instanceof ConfigNodeComplexValue) {
-                return (ConfigNodeComplexValue)node;
+                return (ConfigNodeComplexValue) node;
             }
         }
         throw new ConfigException.BugOrBroken("ConfigNodeRoot did not contain a value");
     }
 
-    protected ConfigNodeRoot setValue(String desiredPath, AbstractConfigNodeValue value, ConfigSyntax flavor) {
+    ConfigNodeRoot setValue(String desiredPath, AbstractConfigNodeValue value, ConfigSyntax flavor) {
         ArrayList<AbstractConfigNode> childrenCopy = new ArrayList<AbstractConfigNode>(children);
         for (int i = 0; i < childrenCopy.size(); i++) {
             AbstractConfigNode node = childrenCopy.get(i);
@@ -38,7 +38,7 @@ final class ConfigNodeRoot extends ConfigNodeComplexValue {
                     throw new ConfigException.WrongType(origin, "The ConfigDocument had an array at the root level, and values cannot be modified inside an array.");
                 } else if (node instanceof ConfigNodeObject) {
                     if (value == null) {
-                        childrenCopy.set(i, ((ConfigNodeObject)node).removeValueOnPath(desiredPath, flavor));
+                        childrenCopy.set(i, ((ConfigNodeObject) node).removeValueOnPath(desiredPath, flavor));
                     } else {
                         childrenCopy.set(i, ((ConfigNodeObject) node).setValueOnPath(desiredPath, value, flavor));
                     }
@@ -49,7 +49,7 @@ final class ConfigNodeRoot extends ConfigNodeComplexValue {
         throw new ConfigException.BugOrBroken("ConfigNodeRoot did not contain a value");
     }
 
-    protected boolean hasValue(String desiredPath) {
+    boolean hasValue(String desiredPath) {
         Path path = PathParser.parsePath(desiredPath);
         ArrayList<AbstractConfigNode> childrenCopy = new ArrayList<AbstractConfigNode>(children);
         for (int i = 0; i < childrenCopy.size(); i++) {

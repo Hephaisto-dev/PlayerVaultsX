@@ -1,31 +1,18 @@
 /**
- *   Copyright (C) 2011-2012 Typesafe Inc. <http://typesafe.com>
+ * Copyright (C) 2011-2012 Typesafe Inc. <http://typesafe.com>
  */
 package com.drtshock.playervaults.lib.com.typesafe.config.impl;
 
+import com.drtshock.playervaults.lib.com.typesafe.config.*;
+
 import java.io.ObjectStreamException;
 import java.io.Serializable;
-import java.util.AbstractMap;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-
-import com.drtshock.playervaults.lib.com.typesafe.config.ConfigException;
-import com.drtshock.playervaults.lib.com.typesafe.config.ConfigObject;
-import com.drtshock.playervaults.lib.com.typesafe.config.ConfigOrigin;
-import com.drtshock.playervaults.lib.com.typesafe.config.ConfigRenderOptions;
-import com.drtshock.playervaults.lib.com.typesafe.config.ConfigValue;
+import java.util.*;
 
 final class SimpleConfigObject extends AbstractConfigObject implements Serializable {
 
     private static final long serialVersionUID = 2L;
-
+    final private static String EMPTY_NAME = "empty config";
     // this map should never be modified - assume immutable
     final private Map<String, AbstractConfigValue> value;
     final private boolean resolved;
@@ -48,8 +35,57 @@ final class SimpleConfigObject extends AbstractConfigObject implements Serializa
     }
 
     SimpleConfigObject(ConfigOrigin origin,
-            Map<String, AbstractConfigValue> value) {
+                       Map<String, AbstractConfigValue> value) {
         this(origin, value, ResolveStatus.fromValues(value.values()), false /* ignoresFallbacks */);
+    }
+
+    private static boolean mapEquals(Map<String, ConfigValue> a, Map<String, ConfigValue> b) {
+        if (a == b)
+            return true;
+
+        Set<String> aKeys = a.keySet();
+        Set<String> bKeys = b.keySet();
+
+        if (!aKeys.equals(bKeys))
+            return false;
+
+        for (String key : aKeys) {
+            if (!a.get(key).equals(b.get(key)))
+                return false;
+        }
+        return true;
+    }
+
+    private static int mapHash(Map<String, ConfigValue> m) {
+        // the keys have to be sorted, otherwise we could be equal
+        // to another map but have a different hashcode.
+        List<String> keys = new ArrayList<String>();
+        keys.addAll(m.keySet());
+        Collections.sort(keys);
+
+        int valuesHash = 0;
+        for (String k : keys) {
+            valuesHash += m.get(k).hashCode();
+        }
+        return 41 * (41 + keys.hashCode()) + valuesHash;
+    }
+
+    static SimpleConfigObject empty() {
+        return emptyInstance;
+    }
+
+    static SimpleConfigObject empty(ConfigOrigin origin) {
+        if (origin == null)
+            return empty();
+        else
+            return new SimpleConfigObject(origin,
+                    Collections.emptyMap());
+    }
+
+    static SimpleConfigObject emptyMissing(ConfigOrigin baseOrigin) {
+        return new SimpleConfigObject(SimpleConfigOrigin.newSimple(
+                baseOrigin.description() + " (not found)"),
+                Collections.emptyMap());
     }
 
     @Override
@@ -96,7 +132,7 @@ final class SimpleConfigObject extends AbstractConfigObject implements Serializa
         SimpleConfigObject o = withOnlyPathOrNull(path);
         if (o == null) {
             return new SimpleConfigObject(origin(),
-                    Collections.<String, AbstractConfigValue> emptyMap(), ResolveStatus.RESOLVED,
+                    Collections.emptyMap(), ResolveStatus.RESOLVED,
                     ignoresFallbacks);
         } else {
             return o;
@@ -176,7 +212,7 @@ final class SimpleConfigObject extends AbstractConfigObject implements Serializa
     }
 
     private SimpleConfigObject newCopy(ResolveStatus newStatus, ConfigOrigin newOrigin,
-            boolean newIgnoresFallbacks) {
+                                       boolean newIgnoresFallbacks) {
         return new SimpleConfigObject(newOrigin, value, newStatus, newIgnoresFallbacks);
     }
 
@@ -248,12 +284,10 @@ final class SimpleConfigObject extends AbstractConfigObject implements Serializa
     protected SimpleConfigObject mergedWithObject(AbstractConfigObject abstractFallback) {
         requireNotIgnoringFallbacks();
 
-        if (!(abstractFallback instanceof SimpleConfigObject)) {
+        if (!(abstractFallback instanceof SimpleConfigObject fallback)) {
             throw new ConfigException.BugOrBroken(
                     "should not be reached (merging non-SimpleConfigObject)");
         }
-
-        SimpleConfigObject fallback = (SimpleConfigObject) abstractFallback;
 
         boolean changed = false;
         boolean allResolved = true;
@@ -344,46 +378,6 @@ final class SimpleConfigObject extends AbstractConfigObject implements Serializa
         }
     }
 
-    private static final class ResolveModifier implements Modifier {
-
-        final Path originalRestrict;
-        ResolveContext context;
-        final ResolveSource source;
-
-        ResolveModifier(ResolveContext context, ResolveSource source) {
-            this.context = context;
-            this.source = source;
-            originalRestrict = context.restrictToChild();
-        }
-
-        @Override
-        public AbstractConfigValue modifyChildMayThrow(String key, AbstractConfigValue v) throws NotPossibleToResolve {
-            if (context.isRestrictedToChild()) {
-                if (key.equals(context.restrictToChild().first())) {
-                    Path remainder = context.restrictToChild().remainder();
-                    if (remainder != null) {
-                        ResolveResult<? extends AbstractConfigValue> result = context.restrict(remainder).resolve(v,
-                                source);
-                        context = result.context.unrestricted().restrict(originalRestrict);
-                        return result.value;
-                    } else {
-                        // we don't want to resolve the leaf child.
-                        return v;
-                    }
-                } else {
-                    // not in the restrictToChild path
-                    return v;
-                }
-            } else {
-                // no restrictToChild, resolve everything
-                ResolveResult<? extends AbstractConfigValue> result = context.unrestricted().resolve(v, source);
-                context = result.context.unrestricted().restrict(originalRestrict);
-                return result.value;
-            }
-        }
-
-    }
-
     @Override
     ResolveResult<? extends AbstractConfigObject> resolveSubstitutions(ResolveContext context, ResolveSource source)
             throws NotPossibleToResolve {
@@ -416,48 +410,6 @@ final class SimpleConfigObject extends AbstractConfigObject implements Serializa
             }
 
         });
-    }
-
-    // this is only Serializable to chill out a findbugs warning
-    static final private class RenderComparator implements java.util.Comparator<String>, Serializable {
-        private static final long serialVersionUID = 1L;
-
-        private static boolean isAllDigits(String s) {
-            int length = s.length();
-
-            // empty string doesn't count as a number
-            if (length == 0)
-                return false;
-
-            for (int i = 0; i < length; ++i) {
-                char c = s.charAt(i);
-
-                if (Character.isDigit(c))
-                    continue;
-                else
-                    return false;
-            }
-            return true;
-        }
-
-        // This is supposed to sort numbers before strings,
-        // and sort the numbers numerically. The point is
-        // to make objects which are really list-like
-        // (numeric indices) appear in order.
-        @Override
-        public int compare(String a, String b) {
-            boolean aDigits = isAllDigits(a);
-            boolean bDigits = isAllDigits(b);
-            if (aDigits && bDigits) {
-                return Integer.compare(Integer.parseInt(a), Integer.parseInt(b));
-            } else if (aDigits) {
-                return -1;
-            } else if (bDigits) {
-                return 1;
-            } else {
-                return a.compareTo(b);
-            }
-        }
     }
 
     @Override
@@ -551,37 +503,6 @@ final class SimpleConfigObject extends AbstractConfigObject implements Serializa
         return value.get(key);
     }
 
-    private static boolean mapEquals(Map<String, ConfigValue> a, Map<String, ConfigValue> b) {
-        if (a == b)
-            return true;
-
-        Set<String> aKeys = a.keySet();
-        Set<String> bKeys = b.keySet();
-
-        if (!aKeys.equals(bKeys))
-            return false;
-
-        for (String key : aKeys) {
-            if (!a.get(key).equals(b.get(key)))
-                return false;
-        }
-        return true;
-    }
-
-    private static int mapHash(Map<String, ConfigValue> m) {
-        // the keys have to be sorted, otherwise we could be equal
-        // to another map but have a different hashcode.
-        List<String> keys = new ArrayList<String>();
-        keys.addAll(m.keySet());
-        Collections.sort(keys);
-
-        int valuesHash = 0;
-        for (String k : keys) {
-            valuesHash += m.get(k).hashCode();
-        }
-        return 41 * (41 + keys.hashCode()) + valuesHash;
-    }
-
     @Override
     protected boolean canEqual(Object other) {
         return other instanceof ConfigObject;
@@ -650,30 +571,95 @@ final class SimpleConfigObject extends AbstractConfigObject implements Serializa
         return new HashSet<ConfigValue>(value.values());
     }
 
-    final private static String EMPTY_NAME = "empty config";
-    final private static SimpleConfigObject emptyInstance = empty(SimpleConfigOrigin
-            .newSimple(EMPTY_NAME));
-
-    final static SimpleConfigObject empty() {
-        return emptyInstance;
-    }
-
-    final static SimpleConfigObject empty(ConfigOrigin origin) {
-        if (origin == null)
-            return empty();
-        else
-            return new SimpleConfigObject(origin,
-                    Collections.<String, AbstractConfigValue> emptyMap());
-    }
-
-    final static SimpleConfigObject emptyMissing(ConfigOrigin baseOrigin) {
-        return new SimpleConfigObject(SimpleConfigOrigin.newSimple(
-                baseOrigin.description() + " (not found)"),
-                Collections.<String, AbstractConfigValue> emptyMap());
-    }
-
     // serialization all goes through SerializedConfigValue
     private Object writeReplace() throws ObjectStreamException {
         return new SerializedConfigValue(this);
+    }    final private static SimpleConfigObject emptyInstance = empty(SimpleConfigOrigin
+            .newSimple(EMPTY_NAME));
+
+    private static final class ResolveModifier implements Modifier {
+
+        final Path originalRestrict;
+        final ResolveSource source;
+        ResolveContext context;
+
+        ResolveModifier(ResolveContext context, ResolveSource source) {
+            this.context = context;
+            this.source = source;
+            originalRestrict = context.restrictToChild();
+        }
+
+        @Override
+        public AbstractConfigValue modifyChildMayThrow(String key, AbstractConfigValue v) throws NotPossibleToResolve {
+            if (context.isRestrictedToChild()) {
+                if (key.equals(context.restrictToChild().first())) {
+                    Path remainder = context.restrictToChild().remainder();
+                    if (remainder != null) {
+                        ResolveResult<? extends AbstractConfigValue> result = context.restrict(remainder).resolve(v,
+                                source);
+                        context = result.context.unrestricted().restrict(originalRestrict);
+                        return result.value;
+                    } else {
+                        // we don't want to resolve the leaf child.
+                        return v;
+                    }
+                } else {
+                    // not in the restrictToChild path
+                    return v;
+                }
+            } else {
+                // no restrictToChild, resolve everything
+                ResolveResult<? extends AbstractConfigValue> result = context.unrestricted().resolve(v, source);
+                context = result.context.unrestricted().restrict(originalRestrict);
+                return result.value;
+            }
+        }
+
     }
+
+    // this is only Serializable to chill out a findbugs warning
+    static final private class RenderComparator implements java.util.Comparator<String>, Serializable {
+        private static final long serialVersionUID = 1L;
+
+        private static boolean isAllDigits(String s) {
+            int length = s.length();
+
+            // empty string doesn't count as a number
+            if (length == 0)
+                return false;
+
+            for (int i = 0; i < length; ++i) {
+                char c = s.charAt(i);
+
+                if (Character.isDigit(c))
+                    continue;
+                else
+                    return false;
+            }
+            return true;
+        }
+
+        // This is supposed to sort numbers before strings,
+        // and sort the numbers numerically. The point is
+        // to make objects which are really list-like
+        // (numeric indices) appear in order.
+        @Override
+        public int compare(String a, String b) {
+            boolean aDigits = isAllDigits(a);
+            boolean bDigits = isAllDigits(b);
+            if (aDigits && bDigits) {
+                return Integer.compare(Integer.parseInt(a), Integer.parseInt(b));
+            } else if (aDigits) {
+                return -1;
+            } else if (bDigits) {
+                return 1;
+            } else {
+                return a.compareTo(b);
+            }
+        }
+    }
+
+
+
+
 }

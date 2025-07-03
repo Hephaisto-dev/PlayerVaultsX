@@ -23,7 +23,6 @@ import com.drtshock.playervaults.config.file.Translation;
 import com.drtshock.playervaults.events.BlacklistedItemEvent;
 import com.drtshock.playervaults.util.Permission;
 import com.drtshock.playervaults.vaultmanagement.VaultHolder;
-import com.drtshock.playervaults.vaultmanagement.VaultManager;
 import com.drtshock.playervaults.vaultmanagement.VaultViewInfo;
 import org.bukkit.Bukkit;
 import org.bukkit.enchantments.Enchantment;
@@ -44,17 +43,12 @@ import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 public class Listeners implements Listener {
 
     public final PlayerVaults plugin;
-    private final VaultManager vaultManager = VaultManager.getInstance();
 
     public Listeners(PlayerVaults playerVaults) {
         this.plugin = playerVaults;
@@ -79,7 +73,7 @@ public class Listeners implements Listener {
             PlayerVaults.debug(inventory.getType() + " " + inventory.getClass().getSimpleName());
             if (inventory.getViewers().size() <= 1) {
                 PlayerVaults.debug("Saving!");
-                vaultManager.saveVault(inv, info.getVaultName(), info.getNumber());
+                plugin.getVaultManager().saveVault(inv, info.getVaultName(), info.getNumber());
                 plugin.getOpenInventories().remove(info.toString());
             } else {
                 if (badDay) {
@@ -129,11 +123,9 @@ public class Listeners implements Listener {
 
     @EventHandler(ignoreCancelled = true)
     public void onClick(InventoryClickEvent event) {
-        if (!(event.getWhoClicked() instanceof Player)) {
+        if (!(event.getWhoClicked() instanceof Player player)) {
             return;
         }
-
-        Player player = (Player) event.getWhoClicked();
 
         Inventory clickedInventory = event.getClickedInventory();
         if (clickedInventory != null) {
@@ -170,11 +162,9 @@ public class Listeners implements Listener {
 
     @EventHandler(ignoreCancelled = true)
     public void onDrag(InventoryDragEvent event) {
-        if (!(event.getWhoClicked() instanceof Player)) {
+        if (!(event.getWhoClicked() instanceof Player player)) {
             return;
         }
-
-        Player player = (Player) event.getWhoClicked();
 
         Inventory clickedInventory = event.getInventory();
         if (clickedInventory != null) {

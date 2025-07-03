@@ -1,17 +1,19 @@
 package com.drtshock.playervaults.lib.com.typesafe.config.impl;
 
-/** The key used to memoize already-traversed nodes when resolving substitutions */
+/**
+ * The key used to memoize already-traversed nodes when resolving substitutions
+ */
 final class MemoKey {
+    final private AbstractConfigValue value;
+    final private Path restrictToChildOrNull;
+
     MemoKey(AbstractConfigValue value, Path restrictToChildOrNull) {
         this.value = value;
         this.restrictToChildOrNull = restrictToChildOrNull;
     }
 
-    final private AbstractConfigValue value;
-    final private Path restrictToChildOrNull;
-
     @Override
-    public final int hashCode() {
+    public int hashCode() {
         int h = System.identityHashCode(value);
         if (restrictToChildOrNull != null) {
             return h + 41 * (41 + restrictToChildOrNull.hashCode());
@@ -21,9 +23,8 @@ final class MemoKey {
     }
 
     @Override
-    public final boolean equals(Object other) {
-        if (other instanceof MemoKey) {
-            MemoKey o = (MemoKey) other;
+    public boolean equals(Object other) {
+        if (other instanceof MemoKey o) {
             if (o.value != this.value)
                 return false;
             else if (o.restrictToChildOrNull == this.restrictToChildOrNull)
@@ -38,7 +39,7 @@ final class MemoKey {
     }
 
     @Override
-    public final String toString() {
+    public String toString() {
         return "MemoKey(" + value + "@" + System.identityHashCode(value) + "," + restrictToChildOrNull + ")";
     }
 }

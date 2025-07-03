@@ -1,20 +1,16 @@
 /**
- *   Copyright (C) 2011-2012 Typesafe Inc. <http://typesafe.com>
+ * Copyright (C) 2011-2012 Typesafe Inc. <http://typesafe.com>
  */
 package com.drtshock.playervaults.lib.com.typesafe.config.impl;
 
-import java.io.DataOutputStream;
-import java.io.File;
-import java.io.IOException;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
+import com.drtshock.playervaults.lib.com.typesafe.config.ConfigException;
+import com.drtshock.playervaults.lib.com.typesafe.config.ConfigOrigin;
+
+import java.io.*;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
-
-import com.drtshock.playervaults.lib.com.typesafe.config.ConfigException;
-import com.drtshock.playervaults.lib.com.typesafe.config.ConfigOrigin;
 
 /**
  * Internal implementation detail, not ABI stable, do not touch.
@@ -33,7 +29,7 @@ final public class ConfigImplUtil {
     }
 
     static boolean isC0Control(int codepoint) {
-      return (codepoint >= 0x0000 && codepoint <= 0x001F);
+        return (codepoint >= 0x0000 && codepoint <= 0x001F);
     }
 
     public static String renderJsonString(String s) {
@@ -42,32 +38,32 @@ final public class ConfigImplUtil {
         for (int i = 0; i < s.length(); ++i) {
             char c = s.charAt(i);
             switch (c) {
-            case '"':
-                sb.append("\\\"");
-                break;
-            case '\\':
-                sb.append("\\\\");
-                break;
-            case '\n':
-                sb.append("\\n");
-                break;
-            case '\b':
-                sb.append("\\b");
-                break;
-            case '\f':
-                sb.append("\\f");
-                break;
-            case '\r':
-                sb.append("\\r");
-                break;
-            case '\t':
-                sb.append("\\t");
-                break;
-            default:
-                if (isC0Control(c))
-                    sb.append(String.format("\\u%04x", (int) c));
-                else
-                    sb.append(c);
+                case '"':
+                    sb.append("\\\"");
+                    break;
+                case '\\':
+                    sb.append("\\\\");
+                    break;
+                case '\n':
+                    sb.append("\\n");
+                    break;
+                case '\b':
+                    sb.append("\\b");
+                    break;
+                case '\f':
+                    sb.append("\\f");
+                    break;
+                case '\r':
+                    sb.append("\\r");
+                    break;
+                case '\t':
+                    sb.append("\\t");
+                    break;
+                default:
+                    if (isC0Control(c))
+                        sb.append(String.format("\\u%04x", (int) c));
+                    else
+                        sb.append(c);
             }
         }
         sb.append('"');
@@ -102,20 +98,20 @@ final public class ConfigImplUtil {
 
     static boolean isWhitespace(int codepoint) {
         switch (codepoint) {
-        // try to hit the most common ASCII ones first, then the nonbreaking
-        // spaces that Java brokenly leaves out of isWhitespace.
-        case ' ':
-        case '\n':
-        case '\u00A0':
-        case '\u2007':
-        case '\u202F':
-            // this one is the BOM, see
-            // http://www.unicode.org/faq/utf_bom.html#BOM
-            // we just accept it as a zero-width nonbreaking space.
-        case '\uFEFF':
-            return true;
-        default:
-            return Character.isWhitespace(codepoint);
+            // try to hit the most common ASCII ones first, then the nonbreaking
+            // spaces that Java brokenly leaves out of isWhitespace.
+            case ' ':
+            case '\n':
+            case '\u00A0':
+            case '\u2007':
+            case '\u202F':
+                // this one is the BOM, see
+                // http://www.unicode.org/faq/utf_bom.html#BOM
+                // we just accept it as a zero-width nonbreaking space.
+            case '\uFEFF':
+                return true;
+            default:
+                return Character.isWhitespace(codepoint);
         }
     }
 

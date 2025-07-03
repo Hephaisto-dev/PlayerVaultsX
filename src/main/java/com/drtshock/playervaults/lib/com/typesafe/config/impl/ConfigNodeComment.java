@@ -11,7 +11,7 @@ final class ConfigNodeComment extends ConfigNodeSingleToken {
         }
     }
 
-    protected String commentText() {
+    String commentText() {
         return Tokens.getCommentText(super.token);
     }
 }

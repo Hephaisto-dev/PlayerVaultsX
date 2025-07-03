@@ -1,16 +1,201 @@
 /**
- *   Copyright (C) 2011-2012 Typesafe Inc. <http://typesafe.com>
+ * Copyright (C) 2011-2012 Typesafe Inc. <http://typesafe.com>
  */
 package com.drtshock.playervaults.lib.com.typesafe.config.impl;
-
-import java.util.List;
 
 import com.drtshock.playervaults.lib.com.typesafe.config.ConfigException;
 import com.drtshock.playervaults.lib.com.typesafe.config.ConfigOrigin;
 import com.drtshock.playervaults.lib.com.typesafe.config.ConfigValueType;
 
+import java.util.List;
+
 /* FIXME the way the subclasses of Token are private with static isFoo and accessors is kind of ridiculous. */
 final class Tokens {
+    final static Token START = Token.newWithoutOrigin(TokenType.START, "start of file", "");
+    final static Token END = Token.newWithoutOrigin(TokenType.END, "end of file", "");
+    final static Token COMMA = Token.newWithoutOrigin(TokenType.COMMA, "','", ",");
+    final static Token EQUALS = Token.newWithoutOrigin(TokenType.EQUALS, "'='", "=");
+    final static Token COLON = Token.newWithoutOrigin(TokenType.COLON, "':'", ":");
+    final static Token OPEN_CURLY = Token.newWithoutOrigin(TokenType.OPEN_CURLY, "'{'", "{");
+    final static Token CLOSE_CURLY = Token.newWithoutOrigin(TokenType.CLOSE_CURLY, "'}'", "}");
+    final static Token OPEN_SQUARE = Token.newWithoutOrigin(TokenType.OPEN_SQUARE, "'['", "[");
+    final static Token CLOSE_SQUARE = Token.newWithoutOrigin(TokenType.CLOSE_SQUARE, "']'", "]");
+    final static Token PLUS_EQUALS = Token.newWithoutOrigin(TokenType.PLUS_EQUALS, "'+='", "+=");
+
+    static boolean isValue(Token token) {
+        return token instanceof Value;
+    }
+
+    static AbstractConfigValue getValue(Token token) {
+        if (token instanceof Value) {
+            return ((Value) token).value();
+        } else {
+            throw new ConfigException.BugOrBroken(
+                    "tried to get value of non-value token " + token);
+        }
+    }
+
+    static boolean isValueWithType(Token t, ConfigValueType valueType) {
+        return isValue(t) && getValue(t).valueType() == valueType;
+    }
+
+    static boolean isNewline(Token token) {
+        return token instanceof Line;
+    }
+
+    static boolean isProblem(Token token) {
+        return token instanceof Problem;
+    }
+
+    static String getProblemWhat(Token token) {
+        if (token instanceof Problem) {
+            return ((Problem) token).what();
+        } else {
+            throw new ConfigException.BugOrBroken("tried to get problem what from " + token);
+        }
+    }
+
+    static String getProblemMessage(Token token) {
+        if (token instanceof Problem) {
+            return ((Problem) token).message();
+        } else {
+            throw new ConfigException.BugOrBroken("tried to get problem message from " + token);
+        }
+    }
+
+    static boolean getProblemSuggestQuotes(Token token) {
+        if (token instanceof Problem) {
+            return ((Problem) token).suggestQuotes();
+        } else {
+            throw new ConfigException.BugOrBroken("tried to get problem suggestQuotes from "
+                    + token);
+        }
+    }
+
+    static Throwable getProblemCause(Token token) {
+        if (token instanceof Problem) {
+            return ((Problem) token).cause();
+        } else {
+            throw new ConfigException.BugOrBroken("tried to get problem cause from " + token);
+        }
+    }
+
+    static boolean isComment(Token token) {
+        return token instanceof Comment;
+    }
+
+    static String getCommentText(Token token) {
+        if (token instanceof Comment) {
+            return ((Comment) token).text();
+        } else {
+            throw new ConfigException.BugOrBroken("tried to get comment text from " + token);
+        }
+    }
+
+    static boolean isUnquotedText(Token token) {
+        return token instanceof UnquotedText;
+    }
+
+    static String getUnquotedText(Token token) {
+        if (token instanceof UnquotedText) {
+            return ((UnquotedText) token).value();
+        } else {
+            throw new ConfigException.BugOrBroken(
+                    "tried to get unquoted text from " + token);
+        }
+    }
+
+    static boolean isIgnoredWhitespace(Token token) {
+        return token instanceof IgnoredWhitespace;
+    }
+
+    static boolean isSubstitution(Token token) {
+        return token instanceof Substitution;
+    }
+
+    static List<Token> getSubstitutionPathExpression(Token token) {
+        if (token instanceof Substitution) {
+            return ((Substitution) token).value();
+        } else {
+            throw new ConfigException.BugOrBroken(
+                    "tried to get substitution from " + token);
+        }
+    }
+
+    static boolean getSubstitutionOptional(Token token) {
+        if (token instanceof Substitution) {
+            return ((Substitution) token).optional();
+        } else {
+            throw new ConfigException.BugOrBroken("tried to get substitution optionality from "
+                    + token);
+        }
+    }
+
+    static Token newLine(ConfigOrigin origin) {
+        return new Line(origin);
+    }
+
+    static Token newProblem(ConfigOrigin origin, String what, String message,
+                            boolean suggestQuotes, Throwable cause) {
+        return new Problem(origin, what, message, suggestQuotes, cause);
+    }
+
+    static Token newCommentDoubleSlash(ConfigOrigin origin, String text) {
+        return new Comment.DoubleSlashComment(origin, text);
+    }
+
+    static Token newCommentHash(ConfigOrigin origin, String text) {
+        return new Comment.HashComment(origin, text);
+    }
+
+    static Token newUnquotedText(ConfigOrigin origin, String s) {
+        return new UnquotedText(origin, s);
+    }
+
+    static Token newIgnoredWhitespace(ConfigOrigin origin, String s) {
+        return new IgnoredWhitespace(origin, s);
+    }
+
+    static Token newSubstitution(ConfigOrigin origin, boolean optional, List<Token> expression) {
+        return new Substitution(origin, optional, expression);
+    }
+
+    static Token newValue(AbstractConfigValue value) {
+        return new Value(value);
+    }
+
+    static Token newValue(AbstractConfigValue value, String origText) {
+        return new Value(value, origText);
+    }
+
+    static Token newString(ConfigOrigin origin, String value, String origText) {
+        return newValue(new ConfigString.Quoted(origin, value), origText);
+    }
+
+    static Token newInt(ConfigOrigin origin, int value, String origText) {
+        return newValue(ConfigNumber.newNumber(origin, value,
+                origText), origText);
+    }
+
+    static Token newDouble(ConfigOrigin origin, double value,
+                           String origText) {
+        return newValue(ConfigNumber.newNumber(origin, value,
+                origText), origText);
+    }
+
+    static Token newLong(ConfigOrigin origin, long value, String origText) {
+        return newValue(ConfigNumber.newNumber(origin, value,
+                origText), origText);
+    }
+
+    static Token newNull(ConfigOrigin origin) {
+        return newValue(new ConfigNull(origin), "null");
+    }
+
+    static Token newBoolean(ConfigOrigin origin, boolean value) {
+        return newValue(new ConfigBoolean(origin, value), "" + value);
+    }
+
     static private class Value extends Token {
 
         final private AbstractConfigValue value;
@@ -132,7 +317,9 @@ final class Tokens {
         }
 
         @Override
-        public String toString() { return "'" + value + "' (WHITESPACE)"; }
+        public String toString() {
+            return "'" + value + "' (WHITESPACE)";
+        }
 
         @Override
         protected boolean canEqual(Object other) {
@@ -142,7 +329,7 @@ final class Tokens {
         @Override
         public boolean equals(Object other) {
             return super.equals(other)
-                && ((IgnoredWhitespace) other).value.equals(value);
+                    && ((IgnoredWhitespace) other).value.equals(value);
         }
 
         @Override
@@ -189,14 +376,13 @@ final class Tokens {
 
         @Override
         public String toString() {
-            StringBuilder sb = new StringBuilder();
-            sb.append('\'');
-            sb.append(what);
-            sb.append('\'');
-            sb.append(" (");
-            sb.append(message);
-            sb.append(")");
-            return sb.toString();
+            String sb = '\'' +
+                    what +
+                    '\'' +
+                    " (" +
+                    message +
+                    ")";
+            return sb;
         }
 
         @Override
@@ -232,6 +418,35 @@ final class Tokens {
             this.text = text;
         }
 
+        String text() {
+            return text;
+        }
+
+        @Override
+        public String toString() {
+            String sb = "'#" +
+                    text +
+                    "' (COMMENT)";
+            return sb;
+        }
+
+        @Override
+        protected boolean canEqual(Object other) {
+            return other instanceof Comment;
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            return super.equals(other) && ((Comment) other).text.equals(text);
+        }
+
+        @Override
+        public int hashCode() {
+            int h = 41 * (41 + super.hashCode());
+            h = 41 * (h + text.hashCode());
+            return h;
+        }
+
         final static class DoubleSlashComment extends Comment {
             DoubleSlashComment(ConfigOrigin origin, String text) {
                 super(origin, text);
@@ -252,36 +467,6 @@ final class Tokens {
             public String tokenText() {
                 return "#" + super.text;
             }
-        }
-
-        String text() {
-            return text;
-        }
-
-        @Override
-        public String toString() {
-            StringBuilder sb = new StringBuilder();
-            sb.append("'#");
-            sb.append(text);
-            sb.append("' (COMMENT)");
-            return sb.toString();
-        }
-
-        @Override
-        protected boolean canEqual(Object other) {
-            return other instanceof Comment;
-        }
-
-        @Override
-        public boolean equals(Object other) {
-            return super.equals(other) && ((Comment) other).text.equals(text);
-        }
-
-        @Override
-        public int hashCode() {
-            int h = 41 * (41 + super.hashCode());
-            h = 41 * (h + text.hashCode());
-            return h;
         }
     }
 
@@ -306,7 +491,7 @@ final class Tokens {
 
         @Override
         public String tokenText() {
-            return "${" + (this.optional? "?" : "") + Tokenizer.render(this.value.iterator()) + "}";
+            return "${" + (this.optional ? "?" : "") + Tokenizer.render(this.value.iterator()) + "}";
         }
 
         @Override
@@ -315,7 +500,7 @@ final class Tokens {
             for (Token t : value) {
                 sb.append(t.toString());
             }
-            return "'${" + sb.toString() + "}'";
+            return "'${" + sb + "}'";
         }
 
         @Override
@@ -333,189 +518,5 @@ final class Tokens {
         public int hashCode() {
             return 41 * (41 + super.hashCode()) + value.hashCode();
         }
-    }
-
-    static boolean isValue(Token token) {
-        return token instanceof Value;
-    }
-
-    static AbstractConfigValue getValue(Token token) {
-        if (token instanceof Value) {
-            return ((Value) token).value();
-        } else {
-            throw new ConfigException.BugOrBroken(
-                    "tried to get value of non-value token " + token);
-        }
-    }
-
-    static boolean isValueWithType(Token t, ConfigValueType valueType) {
-        return isValue(t) && getValue(t).valueType() == valueType;
-    }
-
-    static boolean isNewline(Token token) {
-        return token instanceof Line;
-    }
-
-    static boolean isProblem(Token token) {
-        return token instanceof Problem;
-    }
-
-    static String getProblemWhat(Token token) {
-        if (token instanceof Problem) {
-            return ((Problem) token).what();
-        } else {
-            throw new ConfigException.BugOrBroken("tried to get problem what from " + token);
-        }
-    }
-
-    static String getProblemMessage(Token token) {
-        if (token instanceof Problem) {
-            return ((Problem) token).message();
-        } else {
-            throw new ConfigException.BugOrBroken("tried to get problem message from " + token);
-        }
-    }
-
-    static boolean getProblemSuggestQuotes(Token token) {
-        if (token instanceof Problem) {
-            return ((Problem) token).suggestQuotes();
-        } else {
-            throw new ConfigException.BugOrBroken("tried to get problem suggestQuotes from "
-                    + token);
-        }
-    }
-
-    static Throwable getProblemCause(Token token) {
-        if (token instanceof Problem) {
-            return ((Problem) token).cause();
-        } else {
-            throw new ConfigException.BugOrBroken("tried to get problem cause from " + token);
-        }
-    }
-
-    static boolean isComment(Token token) {
-        return token instanceof Comment;
-    }
-
-    static String getCommentText(Token token) {
-        if (token instanceof Comment) {
-            return ((Comment) token).text();
-        } else {
-            throw new ConfigException.BugOrBroken("tried to get comment text from " + token);
-        }
-    }
-
-    static boolean isUnquotedText(Token token) {
-        return token instanceof UnquotedText;
-    }
-
-    static String getUnquotedText(Token token) {
-        if (token instanceof UnquotedText) {
-            return ((UnquotedText) token).value();
-        } else {
-            throw new ConfigException.BugOrBroken(
-                    "tried to get unquoted text from " + token);
-        }
-    }
-
-    static boolean isIgnoredWhitespace(Token token) {
-        return token instanceof IgnoredWhitespace;
-    }
-
-    static boolean isSubstitution(Token token) {
-        return token instanceof Substitution;
-    }
-
-    static List<Token> getSubstitutionPathExpression(Token token) {
-        if (token instanceof Substitution) {
-            return ((Substitution) token).value();
-        } else {
-            throw new ConfigException.BugOrBroken(
-                    "tried to get substitution from " + token);
-        }
-    }
-
-    static boolean getSubstitutionOptional(Token token) {
-        if (token instanceof Substitution) {
-            return ((Substitution) token).optional();
-        } else {
-            throw new ConfigException.BugOrBroken("tried to get substitution optionality from "
-                    + token);
-        }
-    }
-
-    final static Token START = Token.newWithoutOrigin(TokenType.START, "start of file", "");
-    final static Token END = Token.newWithoutOrigin(TokenType.END, "end of file", "");
-    final static Token COMMA = Token.newWithoutOrigin(TokenType.COMMA, "','", ",");
-    final static Token EQUALS = Token.newWithoutOrigin(TokenType.EQUALS, "'='", "=");
-    final static Token COLON = Token.newWithoutOrigin(TokenType.COLON, "':'", ":");
-    final static Token OPEN_CURLY = Token.newWithoutOrigin(TokenType.OPEN_CURLY, "'{'", "{");
-    final static Token CLOSE_CURLY = Token.newWithoutOrigin(TokenType.CLOSE_CURLY, "'}'", "}");
-    final static Token OPEN_SQUARE = Token.newWithoutOrigin(TokenType.OPEN_SQUARE, "'['", "[");
-    final static Token CLOSE_SQUARE = Token.newWithoutOrigin(TokenType.CLOSE_SQUARE, "']'", "]");
-    final static Token PLUS_EQUALS = Token.newWithoutOrigin(TokenType.PLUS_EQUALS, "'+='", "+=");
-
-    static Token newLine(ConfigOrigin origin) {
-        return new Line(origin);
-    }
-
-    static Token newProblem(ConfigOrigin origin, String what, String message,
-            boolean suggestQuotes, Throwable cause) {
-        return new Problem(origin, what, message, suggestQuotes, cause);
-    }
-
-    static Token newCommentDoubleSlash(ConfigOrigin origin, String text) {
-        return new Comment.DoubleSlashComment(origin, text);
-    }
-
-    static Token newCommentHash(ConfigOrigin origin, String text) {
-        return new Comment.HashComment(origin, text);
-    }
-
-    static Token newUnquotedText(ConfigOrigin origin, String s) {
-        return new UnquotedText(origin, s);
-    }
-
-    static Token newIgnoredWhitespace(ConfigOrigin origin, String s) {
-        return new IgnoredWhitespace(origin, s);
-    }
-
-    static Token newSubstitution(ConfigOrigin origin, boolean optional, List<Token> expression) {
-        return new Substitution(origin, optional, expression);
-    }
-
-    static Token newValue(AbstractConfigValue value) {
-        return new Value(value);
-    }
-    static Token newValue(AbstractConfigValue value, String origText) {
-        return new Value(value, origText);
-    }
-
-    static Token newString(ConfigOrigin origin, String value, String origText) {
-        return newValue(new ConfigString.Quoted(origin, value), origText);
-    }
-
-    static Token newInt(ConfigOrigin origin, int value, String origText) {
-        return newValue(ConfigNumber.newNumber(origin, value,
-                origText), origText);
-    }
-
-    static Token newDouble(ConfigOrigin origin, double value,
-            String origText) {
-        return newValue(ConfigNumber.newNumber(origin, value,
-                origText), origText);
-    }
-
-    static Token newLong(ConfigOrigin origin, long value, String origText) {
-        return newValue(ConfigNumber.newNumber(origin, value,
-                origText), origText);
-    }
-
-    static Token newNull(ConfigOrigin origin) {
-        return newValue(new ConfigNull(origin), "null");
-    }
-
-    static Token newBoolean(ConfigOrigin origin, boolean value) {
-        return newValue(new ConfigBoolean(origin, value), "" + value);
     }
 }

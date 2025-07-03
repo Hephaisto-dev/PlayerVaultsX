@@ -1,5 +1,5 @@
 /**
- *   Copyright (C) 2015 Typesafe Inc. <http://typesafe.com>
+ * Copyright (C) 2015 Typesafe Inc. <http://typesafe.com>
  */
 package com.drtshock.playervaults.lib.com.typesafe.config.impl;
 
@@ -39,7 +39,7 @@ final class ConfigNodeField extends AbstractConfigNode {
     public AbstractConfigNodeValue value() {
         for (int i = 0; i < children.size(); i++) {
             if (children.get(i) instanceof AbstractConfigNodeValue) {
-                return (AbstractConfigNodeValue)children.get(i);
+                return (AbstractConfigNodeValue) children.get(i);
             }
         }
         throw new ConfigException.BugOrBroken("Field node doesn't have a value");
@@ -48,13 +48,13 @@ final class ConfigNodeField extends AbstractConfigNode {
     public ConfigNodePath path() {
         for (int i = 0; i < children.size(); i++) {
             if (children.get(i) instanceof ConfigNodePath) {
-                return (ConfigNodePath)children.get(i);
+                return (ConfigNodePath) children.get(i);
             }
         }
         throw new ConfigException.BugOrBroken("Field node doesn't have a path");
     }
 
-    protected Token separator() {
+    Token separator() {
         for (AbstractConfigNode child : children) {
             if (child instanceof ConfigNodeSingleToken) {
                 Token t = ((ConfigNodeSingleToken) child).token();
@@ -66,7 +66,7 @@ final class ConfigNodeField extends AbstractConfigNode {
         return null;
     }
 
-    protected List<String> comments() {
+    List<String> comments() {
         List<String> comments = new ArrayList<String>();
         for (AbstractConfigNode child : children) {
             if (child instanceof ConfigNodeComment) {

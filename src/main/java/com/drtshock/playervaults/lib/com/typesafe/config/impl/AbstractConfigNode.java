@@ -1,13 +1,15 @@
 /**
- *   Copyright (C) 2015 Typesafe Inc. <http://typesafe.com>
+ * Copyright (C) 2015 Typesafe Inc. <http://typesafe.com>
  */
 package com.drtshock.playervaults.lib.com.typesafe.config.impl;
 
 import com.drtshock.playervaults.lib.com.typesafe.config.parser.ConfigNode;
+
 import java.util.Collection;
 
 abstract class AbstractConfigNode implements ConfigNode {
     abstract Collection<Token> tokens();
+
     final public String render() {
         StringBuilder origText = new StringBuilder();
         Iterable<Token> tokens = tokens();
@@ -19,7 +21,7 @@ abstract class AbstractConfigNode implements ConfigNode {
 
     @Override
     final public boolean equals(Object other) {
-        return other instanceof AbstractConfigNode && render().equals(((AbstractConfigNode)other).render());
+        return other instanceof AbstractConfigNode && render().equals(((AbstractConfigNode) other).render());
     }
 
     @Override

@@ -64,7 +64,7 @@ public class BackpackConverter implements Converter {
 
     private int convert(File worldFolder, int intoVaultNum) {
         PlayerVaults plugin = PlayerVaults.getInstance();
-        VaultManager vaults = VaultManager.getInstance();
+        VaultManager vaults = plugin.getVaultManager();
         int converted = 0;
         long lastUpdate = 0;
         File[] files = worldFolder.listFiles();

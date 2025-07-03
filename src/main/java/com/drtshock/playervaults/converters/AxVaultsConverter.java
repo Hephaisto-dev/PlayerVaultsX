@@ -33,7 +33,8 @@ import java.lang.invoke.MethodType;
 import java.lang.reflect.Field;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
-import java.util.*;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.logging.Level;
 
 public class AxVaultsConverter implements Converter {
@@ -42,7 +43,7 @@ public class AxVaultsConverter implements Converter {
     @Override
     public int run(CommandSender initiator) {
         PlayerVaults plugin = PlayerVaults.getInstance();
-        VaultManager vaultManager = VaultManager.getInstance();
+        VaultManager vaultManager = plugin.getVaultManager();
 
         Plugin axVaultsPlugin = plugin.getServer().getPluginManager().getPlugin("AxVaults");
         Object database;

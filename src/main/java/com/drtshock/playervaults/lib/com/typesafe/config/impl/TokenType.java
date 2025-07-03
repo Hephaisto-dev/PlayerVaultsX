@@ -1,5 +1,5 @@
 /**
- *   Copyright (C) 2011-2012 Typesafe Inc. <http://typesafe.com>
+ * Copyright (C) 2011-2012 Typesafe Inc. <http://typesafe.com>
  */
 package com.drtshock.playervaults.lib.com.typesafe.config.impl;
 
@@ -20,5 +20,5 @@ enum TokenType {
     SUBSTITUTION,
     PROBLEM,
     COMMENT,
-    PLUS_EQUALS;
+    PLUS_EQUALS
 }

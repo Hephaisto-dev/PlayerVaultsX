@@ -1,30 +1,15 @@
 package com.drtshock.playervaults.lib.com.typesafe.config.impl;
 
+import com.drtshock.playervaults.lib.com.typesafe.config.Optional;
+import com.drtshock.playervaults.lib.com.typesafe.config.*;
+
 import java.beans.BeanInfo;
 import java.beans.IntrospectionException;
 import java.beans.Introspector;
 import java.beans.PropertyDescriptor;
-import java.lang.reflect.Field;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
-import java.lang.reflect.ParameterizedType;
-import java.lang.reflect.Type;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
+import java.lang.reflect.*;
 import java.time.Duration;
-import java.util.Set;
-
-import com.drtshock.playervaults.lib.com.typesafe.config.Config;
-import com.drtshock.playervaults.lib.com.typesafe.config.ConfigObject;
-import com.drtshock.playervaults.lib.com.typesafe.config.ConfigList;
-import com.drtshock.playervaults.lib.com.typesafe.config.ConfigException;
-import com.drtshock.playervaults.lib.com.typesafe.config.ConfigMemorySize;
-import com.drtshock.playervaults.lib.com.typesafe.config.ConfigValue;
-import com.drtshock.playervaults.lib.com.typesafe.config.ConfigValueType;
-import com.drtshock.playervaults.lib.com.typesafe.config.Optional;
+import java.util.*;
 
 /**
  * Internal implementation detail, not ABI stable, do not touch.
@@ -35,13 +20,14 @@ public class ConfigBeanImpl {
     /**
      * This is public ONLY for use by the "config" package, DO NOT USE this ABI
      * may change.
-     * @param <T> type of the bean
+     *
+     * @param <T>    type of the bean
      * @param config config to use
-     * @param clazz class of the bean
+     * @param clazz  class of the bean
      * @return the bean instance
      */
     public static <T> T createInternal(Config config, Class<T> clazz) {
-        if (((SimpleConfig)config).root().resolveStatus() != ResolveStatus.RESOLVED)
+        if (((SimpleConfig) config).root().resolveStatus() != ResolveStatus.RESOLVED)
             throw new ConfigException.NotResolved(
                     "need to Config#resolve() a config before using it to initialize a bean, see the API docs for Config#resolve()");
 
@@ -143,7 +129,7 @@ public class ConfigBeanImpl {
     // types plus you can always use Object, ConfigValue, Config,
     // ConfigObject, etc.  as an escape hatch.
     private static Object getValue(Class<?> beanClass, Type parameterType, Class<?> parameterClass, Config config,
-            String configPropName) {
+                                   String configPropName) {
         if (parameterClass == Boolean.class || parameterClass == boolean.class) {
             return config.getBoolean(configPropName);
         } else if (parameterClass == Integer.class || parameterClass == int.class) {
@@ -166,7 +152,7 @@ public class ConfigBeanImpl {
             return getSetValue(beanClass, parameterType, parameterClass, config, configPropName);
         } else if (parameterClass == Map.class) {
             // we could do better here, but right now we don't.
-            Type[] typeArgs = ((ParameterizedType)parameterType).getActualTypeArguments();
+            Type[] typeArgs = ((ParameterizedType) parameterType).getActualTypeArguments();
             if (typeArgs[0] != String.class || typeArgs[1] != Object.class) {
                 throw new ConfigException.BadBean("Bean property '" + configPropName + "' of class " + beanClass.getName() + " has unsupported Map<" + typeArgs[0] + "," + typeArgs[1] + ">, only Map<String,Object> is supported right now");
             }
@@ -195,7 +181,7 @@ public class ConfigBeanImpl {
     }
 
     private static Object getListValue(Class<?> beanClass, Type parameterType, Class<?> parameterClass, Config config, String configPropName) {
-        Type elementType = ((ParameterizedType)parameterType).getActualTypeArguments()[0];
+        Type elementType = ((ParameterizedType) parameterType).getActualTypeArguments()[0];
 
         if (elementType == Boolean.class) {
             return config.getBooleanList(configPropName);

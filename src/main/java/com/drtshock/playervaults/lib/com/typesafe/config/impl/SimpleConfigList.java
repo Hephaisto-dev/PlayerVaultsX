@@ -1,22 +1,13 @@
 /**
- *   Copyright (C) 2011-2012 Typesafe Inc. <http://typesafe.com>
+ * Copyright (C) 2011-2012 Typesafe Inc. <http://typesafe.com>
  */
 package com.drtshock.playervaults.lib.com.typesafe.config.impl;
 
+import com.drtshock.playervaults.lib.com.typesafe.config.*;
+
 import java.io.ObjectStreamException;
 import java.io.Serializable;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Iterator;
-import java.util.List;
-import java.util.ListIterator;
-
-import com.drtshock.playervaults.lib.com.typesafe.config.ConfigException;
-import com.drtshock.playervaults.lib.com.typesafe.config.ConfigList;
-import com.drtshock.playervaults.lib.com.typesafe.config.ConfigOrigin;
-import com.drtshock.playervaults.lib.com.typesafe.config.ConfigRenderOptions;
-import com.drtshock.playervaults.lib.com.typesafe.config.ConfigValue;
-import com.drtshock.playervaults.lib.com.typesafe.config.ConfigValueType;
+import java.util.*;
 
 final class SimpleConfigList extends AbstractConfigValue implements ConfigList, Container, Serializable {
 
@@ -31,7 +22,7 @@ final class SimpleConfigList extends AbstractConfigValue implements ConfigList, 
     }
 
     SimpleConfigList(ConfigOrigin origin, List<AbstractConfigValue> value,
-            ResolveStatus status) {
+                     ResolveStatus status) {
         super(origin);
         this.value = value;
         this.resolved = status == ResolveStatus.RESOLVED;
@@ -40,6 +31,61 @@ final class SimpleConfigList extends AbstractConfigValue implements ConfigList, 
         if (status != ResolveStatus.fromValues(value))
             throw new ConfigException.BugOrBroken(
                     "SimpleConfigList created with wrong resolve status: " + this);
+    }
+
+    private static ListIterator<ConfigValue> wrapListIterator(
+            final ListIterator<AbstractConfigValue> i) {
+        return new ListIterator<ConfigValue>() {
+            @Override
+            public boolean hasNext() {
+                return i.hasNext();
+            }
+
+            @Override
+            public ConfigValue next() {
+                return i.next();
+            }
+
+            @Override
+            public void remove() {
+                throw weAreImmutable("listIterator().remove");
+            }
+
+            @Override
+            public void add(ConfigValue arg0) {
+                throw weAreImmutable("listIterator().add");
+            }
+
+            @Override
+            public boolean hasPrevious() {
+                return i.hasPrevious();
+            }
+
+            @Override
+            public int nextIndex() {
+                return i.nextIndex();
+            }
+
+            @Override
+            public ConfigValue previous() {
+                return i.previous();
+            }
+
+            @Override
+            public int previousIndex() {
+                return i.previousIndex();
+            }
+
+            @Override
+            public void set(ConfigValue arg0) {
+                throw weAreImmutable("listIterator().set");
+            }
+        };
+    }
+
+    private static UnsupportedOperationException weAreImmutable(String method) {
+        return new UnsupportedOperationException(
+                "ConfigList is immutable, you can't call List.'" + method + "'");
     }
 
     @Override
@@ -123,23 +169,6 @@ final class SimpleConfigList extends AbstractConfigValue implements ConfigList, 
         } else {
             return this;
         }
-    }
-
-    private static class ResolveModifier implements Modifier {
-        ResolveContext context;
-        final ResolveSource source;
-        ResolveModifier(ResolveContext context, ResolveSource source) {
-            this.context = context;
-            this.source = source;
-        }
-
-        @Override
-        public AbstractConfigValue modifyChildMayThrow(String key, AbstractConfigValue v)
-                    throws NotPossibleToResolve {
-            ResolveResult<? extends AbstractConfigValue> result = context.resolve(v, source);
-            context = result.context;
-            return result.value;
-            }
     }
 
     @Override
@@ -298,56 +327,6 @@ final class SimpleConfigList extends AbstractConfigValue implements ConfigList, 
         return value.lastIndexOf(o);
     }
 
-    private static ListIterator<ConfigValue> wrapListIterator(
-            final ListIterator<AbstractConfigValue> i) {
-        return new ListIterator<ConfigValue>() {
-            @Override
-            public boolean hasNext() {
-                return i.hasNext();
-            }
-
-            @Override
-            public ConfigValue next() {
-                return i.next();
-            }
-
-            @Override
-            public void remove() {
-                throw weAreImmutable("listIterator().remove");
-            }
-
-            @Override
-            public void add(ConfigValue arg0) {
-                throw weAreImmutable("listIterator().add");
-            }
-
-            @Override
-            public boolean hasPrevious() {
-                return i.hasPrevious();
-            }
-
-            @Override
-            public int nextIndex() {
-                return i.nextIndex();
-            }
-
-            @Override
-            public ConfigValue previous() {
-                return i.previous();
-            }
-
-            @Override
-            public int previousIndex() {
-                return i.previousIndex();
-            }
-
-            @Override
-            public void set(ConfigValue arg0) {
-                throw weAreImmutable("listIterator().set");
-            }
-        };
-    }
-
     @Override
     public ListIterator<ConfigValue> listIterator() {
         return wrapListIterator(value.listIterator());
@@ -381,11 +360,6 @@ final class SimpleConfigList extends AbstractConfigValue implements ConfigList, 
     @Override
     public <T> T[] toArray(T[] a) {
         return value.toArray(a);
-    }
-
-    private static UnsupportedOperationException weAreImmutable(String method) {
-        return new UnsupportedOperationException(
-                "ConfigList is immutable, you can't call List.'" + method + "'");
     }
 
     @Override
@@ -443,7 +417,7 @@ final class SimpleConfigList extends AbstractConfigValue implements ConfigList, 
         return new SimpleConfigList(newOrigin, value);
     }
 
-    final SimpleConfigList concatenate(SimpleConfigList other) {
+    SimpleConfigList concatenate(SimpleConfigList other) {
         ConfigOrigin combinedOrigin = SimpleConfigOrigin.mergeOrigins(origin(), other.origin());
         List<AbstractConfigValue> combined = new ArrayList<AbstractConfigValue>(value.size()
                 + other.value.size());
@@ -460,5 +434,23 @@ final class SimpleConfigList extends AbstractConfigValue implements ConfigList, 
     @Override
     public SimpleConfigList withOrigin(ConfigOrigin origin) {
         return (SimpleConfigList) super.withOrigin(origin);
+    }
+
+    private static class ResolveModifier implements Modifier {
+        final ResolveSource source;
+        ResolveContext context;
+
+        ResolveModifier(ResolveContext context, ResolveSource source) {
+            this.context = context;
+            this.source = source;
+        }
+
+        @Override
+        public AbstractConfigValue modifyChildMayThrow(String key, AbstractConfigValue v)
+                throws NotPossibleToResolve {
+            ResolveResult<? extends AbstractConfigValue> result = context.resolve(v, source);
+            context = result.context;
+            return result.value;
+        }
     }
 }

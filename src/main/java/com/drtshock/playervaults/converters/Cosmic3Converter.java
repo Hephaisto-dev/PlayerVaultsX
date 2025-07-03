@@ -33,7 +33,7 @@ public class Cosmic3Converter implements Converter {
     @Override
     public int run(CommandSender initiator) {
         PlayerVaults plugin = PlayerVaults.getInstance();
-        VaultManager vaultManager = VaultManager.getInstance();
+        VaultManager vaultManager = plugin.getVaultManager();
         // Cosmic 3.x
         Path path = plugin.getDataFolder().toPath().getParent().resolve("CosmicVaults").resolve("vaults.yml");
         if (!Files.exists(path)) {

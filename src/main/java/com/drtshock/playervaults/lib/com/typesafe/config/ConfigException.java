@@ -1,13 +1,13 @@
 /**
- *   Copyright (C) 2011-2012 Typesafe Inc. <http://typesafe.com>
+ * Copyright (C) 2011-2012 Typesafe Inc. <http://typesafe.com>
  */
 package com.drtshock.playervaults.lib.com.typesafe.config;
+
+import com.drtshock.playervaults.lib.com.typesafe.config.impl.ConfigImplUtil;
 
 import java.io.IOException;
 import java.io.Serializable;
 import java.lang.reflect.Field;
-
-import com.drtshock.playervaults.lib.com.typesafe.config.impl.ConfigImplUtil;
 
 /**
  * All exceptions thrown by the library are subclasses of
@@ -19,7 +19,7 @@ public abstract class ConfigException extends RuntimeException implements Serial
     final private transient ConfigOrigin origin;
 
     protected ConfigException(ConfigOrigin origin, String message,
-            Throwable cause) {
+                              Throwable cause) {
         super(origin.description() + ": " + message, cause);
         this.origin = origin;
     }
@@ -35,6 +35,29 @@ public abstract class ConfigException extends RuntimeException implements Serial
 
     protected ConfigException(String message) {
         this(message, null);
+    }
+
+    // For deserialization - uses reflection to set the final origin field on the object
+    private static <T> void setOriginField(T hasOriginField, Class<T> clazz,
+                                           ConfigOrigin origin) throws IOException {
+        // circumvent "final"
+        Field f;
+        try {
+            f = clazz.getDeclaredField("origin");
+        } catch (NoSuchFieldException e) {
+            throw new IOException(clazz.getSimpleName() + " has no origin field?", e);
+        } catch (SecurityException e) {
+            throw new IOException("unable to fill out origin field in " +
+                    clazz.getSimpleName(), e);
+        }
+        f.setAccessible(true);
+        try {
+            f.set(hasOriginField, origin);
+        } catch (IllegalArgumentException e) {
+            throw new IOException("unable to set origin field", e);
+        } catch (IllegalAccessException e) {
+            throw new IOException("unable to set origin field", e);
+        }
     }
 
     /**
@@ -58,29 +81,6 @@ public abstract class ConfigException extends RuntimeException implements Serial
         ConfigImplUtil.writeOrigin(out, origin);
     }
 
-    // For deserialization - uses reflection to set the final origin field on the object
-    private static <T> void setOriginField(T hasOriginField, Class<T> clazz,
-            ConfigOrigin origin) throws IOException {
-        // circumvent "final"
-        Field f;
-        try {
-            f = clazz.getDeclaredField("origin");
-        } catch (NoSuchFieldException e) {
-            throw new IOException(clazz.getSimpleName() + " has no origin field?", e);
-        } catch (SecurityException e) {
-            throw new IOException("unable to fill out origin field in " +
-                    clazz.getSimpleName(), e);
-        }
-        f.setAccessible(true);
-        try {
-            f.set(hasOriginField, origin);
-        } catch (IllegalArgumentException e) {
-            throw new IOException("unable to set origin field", e);
-        } catch (IllegalAccessException e) {
-            throw new IOException("unable to set origin field", e);
-        }
-    }
-
     private void readObject(java.io.ObjectInputStream in) throws IOException,
             ClassNotFoundException {
         in.defaultReadObject();
@@ -91,13 +91,12 @@ public abstract class ConfigException extends RuntimeException implements Serial
     /**
      * Exception indicating that the type of a value does not match the type you
      * requested.
-     *
      */
     public static class WrongType extends ConfigException {
         private static final long serialVersionUID = 1L;
 
         public WrongType(ConfigOrigin origin, String path, String expected, String actual,
-                Throwable cause) {
+                         Throwable cause) {
             super(origin, path + " has type " + actual + " rather than " + expected, cause);
         }
 
@@ -146,6 +145,15 @@ public abstract class ConfigException extends RuntimeException implements Serial
     public static class Null extends Missing {
         private static final long serialVersionUID = 1L;
 
+        public Null(ConfigOrigin origin, String path, String expected,
+                    Throwable cause) {
+            super(origin, makeMessage(path, expected), cause);
+        }
+
+        public Null(ConfigOrigin origin, String path, String expected) {
+            this(origin, path, expected, null);
+        }
+
         private static String makeMessage(String path, String expected) {
             if (expected != null) {
                 return "Configuration key '" + path
@@ -154,28 +162,18 @@ public abstract class ConfigException extends RuntimeException implements Serial
                 return "Configuration key '" + path + "' is null";
             }
         }
-
-        public Null(ConfigOrigin origin, String path, String expected,
-                Throwable cause) {
-            super(origin, makeMessage(path, expected), cause);
-        }
-
-        public Null(ConfigOrigin origin, String path, String expected) {
-            this(origin, path, expected, null);
-        }
     }
 
     /**
      * Exception indicating that a value was messed up, for example you may have
      * asked for a duration and the value can't be sensibly parsed as a
      * duration.
-     *
      */
     public static class BadValue extends ConfigException {
         private static final long serialVersionUID = 1L;
 
         public BadValue(ConfigOrigin origin, String path, String message,
-                Throwable cause) {
+                        Throwable cause) {
             super(origin, "Invalid value at '" + path + "': " + message, cause);
         }
 
@@ -195,13 +193,12 @@ public abstract class ConfigException extends RuntimeException implements Serial
     /**
      * Exception indicating that a path expression was invalid. Try putting
      * double quotes around path elements that contain "special" characters.
-     *
      */
     public static class BadPath extends ConfigException {
         private static final long serialVersionUID = 1L;
 
         public BadPath(ConfigOrigin origin, String path, String message,
-                Throwable cause) {
+                       Throwable cause) {
             super(origin,
                     path != null ? ("Invalid path '" + path + "': " + message)
                             : message, cause);
@@ -246,7 +243,6 @@ public abstract class ConfigException extends RuntimeException implements Serial
 
     /**
      * Exception indicating that there was an IO error.
-     *
      */
     public static class IO extends ConfigException {
         private static final long serialVersionUID = 1L;
@@ -262,7 +258,6 @@ public abstract class ConfigException extends RuntimeException implements Serial
 
     /**
      * Exception indicating that there was a parse error.
-     *
      */
     public static class Parse extends ConfigException {
         private static final long serialVersionUID = 1L;
@@ -331,6 +326,7 @@ public abstract class ConfigException extends RuntimeException implements Serial
 
         /**
          * Returns the config setting causing the problem.
+         *
          * @return the path of the problem setting
          */
         public String path() {
@@ -340,6 +336,7 @@ public abstract class ConfigException extends RuntimeException implements Serial
         /**
          * Returns where the problem occurred (origin may include info on the
          * file, line number, etc.).
+         *
          * @return the origin of the problem setting
          */
         public ConfigOrigin origin() {
@@ -348,6 +345,7 @@ public abstract class ConfigException extends RuntimeException implements Serial
 
         /**
          * Returns a description of the problem.
+         *
          * @return description of the problem
          */
         public String problem() {
@@ -390,10 +388,6 @@ public abstract class ConfigException extends RuntimeException implements Serial
             this.problems = problems;
         }
 
-        public Iterable<ValidationProblem> problems() {
-            return problems;
-        }
-
         private static String makeMessage(Iterable<ValidationProblem> problems) {
             StringBuilder sb = new StringBuilder();
             for (ValidationProblem p : problems) {
@@ -411,10 +405,15 @@ public abstract class ConfigException extends RuntimeException implements Serial
 
             return sb.toString();
         }
+
+        public Iterable<ValidationProblem> problems() {
+            return problems;
+        }
     }
 
     /**
      * Some problem with a JavaBean we are trying to initialize.
+     *
      * @since 1.3.0
      */
     public static class BadBean extends BugOrBroken {

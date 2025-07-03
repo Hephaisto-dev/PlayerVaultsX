@@ -1,7 +1,9 @@
 /**
- *   Copyright (C) 2011-2012 Typesafe Inc. <http://typesafe.com>
+ * Copyright (C) 2011-2012 Typesafe Inc. <http://typesafe.com>
  */
 package com.drtshock.playervaults.lib.com.typesafe.config.impl;
+
+import com.drtshock.playervaults.lib.com.typesafe.config.*;
 
 import java.io.ObjectStreamException;
 import java.io.Serializable;
@@ -12,25 +14,8 @@ import java.time.Duration;
 import java.time.Period;
 import java.time.temporal.ChronoUnit;
 import java.time.temporal.TemporalAmount;
-import java.util.AbstractMap;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
-
-import com.drtshock.playervaults.lib.com.typesafe.config.ConfigException;
-import com.drtshock.playervaults.lib.com.typesafe.config.ConfigList;
-import com.drtshock.playervaults.lib.com.typesafe.config.ConfigMemorySize;
-import com.drtshock.playervaults.lib.com.typesafe.config.ConfigMergeable;
-import com.drtshock.playervaults.lib.com.typesafe.config.ConfigObject;
-import com.drtshock.playervaults.lib.com.typesafe.config.ConfigOrigin;
-import com.drtshock.playervaults.lib.com.typesafe.config.ConfigResolveOptions;
-import com.drtshock.playervaults.lib.com.typesafe.config.ConfigValue;
-import com.drtshock.playervaults.lib.com.typesafe.config.ConfigValueType;
-import com.drtshock.playervaults.lib.com.typesafe.config.Config;
 
 /**
  * One thing to keep in mind in the future: as Collection-like APIs are added
@@ -46,6 +31,460 @@ final class SimpleConfig implements Config, MergeableValue, Serializable {
 
     SimpleConfig(AbstractConfigObject object) {
         this.object = object;
+    }
+
+    private static void findPaths(Set<Map.Entry<String, ConfigValue>> entries, Path parent,
+                                  AbstractConfigObject obj) {
+        for (Map.Entry<String, ConfigValue> entry : obj.entrySet()) {
+            String elem = entry.getKey();
+            ConfigValue v = entry.getValue();
+            Path path = Path.newKey(elem);
+            if (parent != null)
+                path = path.prepend(parent);
+            if (v instanceof AbstractConfigObject) {
+                findPaths(entries, path, (AbstractConfigObject) v);
+            } else if (v instanceof ConfigNull) {
+                // nothing; nulls are conceptually not in a Config
+            } else {
+                entries.add(new AbstractMap.SimpleImmutableEntry<String, ConfigValue>(path.render(), v));
+            }
+        }
+    }
+
+    static private AbstractConfigValue throwIfNull(AbstractConfigValue v, ConfigValueType expected, Path originalPath) {
+        if (v.valueType() == ConfigValueType.NULL)
+            throw new ConfigException.Null(v.origin(), originalPath.render(),
+                    expected != null ? expected.name() : null);
+        else
+            return v;
+    }
+
+    static private AbstractConfigValue findKey(AbstractConfigObject self, String key,
+                                               ConfigValueType expected, Path originalPath) {
+        return throwIfNull(findKeyOrNull(self, key, expected, originalPath), expected, originalPath);
+    }
+
+    static private AbstractConfigValue findKeyOrNull(AbstractConfigObject self, String key,
+                                                     ConfigValueType expected, Path originalPath) {
+        AbstractConfigValue v = self.peekAssumingResolved(key, originalPath);
+        if (v == null)
+            throw new ConfigException.Missing(originalPath.render());
+
+        if (expected != null)
+            v = DefaultTransformer.transform(v, expected);
+
+        if (expected != null && (v.valueType() != expected && v.valueType() != ConfigValueType.NULL))
+            throw new ConfigException.WrongType(v.origin(), originalPath.render(), expected.name(),
+                    v.valueType().name());
+        else
+            return v;
+    }
+
+    static private AbstractConfigValue findOrNull(AbstractConfigObject self, Path path,
+                                                  ConfigValueType expected, Path originalPath) {
+        try {
+            String key = path.first();
+            Path next = path.remainder();
+            if (next == null) {
+                return findKeyOrNull(self, key, expected, originalPath);
+            } else {
+                AbstractConfigObject o = (AbstractConfigObject) findKey(self, key,
+                        ConfigValueType.OBJECT,
+                        originalPath.subPath(0, originalPath.length() - next.length()));
+                assert (o != null); // missing was supposed to throw
+                return findOrNull(o, next, expected, originalPath);
+            }
+        } catch (ConfigException.NotResolved e) {
+            throw ConfigImpl.improveNotResolved(path, e);
+        }
+    }
+
+    private static String getUnits(String s) {
+        int i = s.length() - 1;
+        while (i >= 0) {
+            char c = s.charAt(i);
+            if (!Character.isLetter(c))
+                break;
+            i -= 1;
+        }
+        return s.substring(i + 1);
+    }
+
+    /**
+     * Parses a period string. If no units are specified in the string, it is
+     * assumed to be in days. The returned period is in days.
+     * The purpose of this function is to implement the period-related methods
+     * in the ConfigObject interface.
+     *
+     * @param input              the string to parse
+     * @param originForException origin of the value being parsed
+     * @param pathForException   path to include in exceptions
+     * @return duration in days
+     * @throws ConfigException if string is invalid
+     */
+    public static Period parsePeriod(String input,
+                                     ConfigOrigin originForException, String pathForException) {
+        String s = ConfigImplUtil.unicodeTrim(input);
+        String originalUnitString = getUnits(s);
+        String unitString = originalUnitString;
+        String numberString = ConfigImplUtil.unicodeTrim(s.substring(0, s.length()
+                - unitString.length()));
+        ChronoUnit units;
+
+        // this would be caught later anyway, but the error message
+        // is more helpful if we check it here.
+        if (numberString.length() == 0)
+            throw new ConfigException.BadValue(originForException,
+                    pathForException, "No number in period value '" + input
+                    + "'");
+
+        if (unitString.length() > 2 && !unitString.endsWith("s"))
+            unitString = unitString + "s";
+
+        // note that this is deliberately case-sensitive
+        if (unitString.equals("") || unitString.equals("d") || unitString.equals("days")) {
+            units = ChronoUnit.DAYS;
+
+        } else if (unitString.equals("w") || unitString.equals("weeks")) {
+            units = ChronoUnit.WEEKS;
+
+        } else if (unitString.equals("m") || unitString.equals("mo") || unitString.equals("months")) {
+            units = ChronoUnit.MONTHS;
+
+        } else if (unitString.equals("y") || unitString.equals("years")) {
+            units = ChronoUnit.YEARS;
+
+        } else {
+            throw new ConfigException.BadValue(originForException,
+                    pathForException, "Could not parse time unit '"
+                    + originalUnitString
+                    + "' (try d, w, mo, y)");
+        }
+
+        try {
+            return periodOf(Integer.parseInt(numberString), units);
+        } catch (NumberFormatException e) {
+            throw new ConfigException.BadValue(originForException,
+                    pathForException, "Could not parse duration number '"
+                    + numberString + "'");
+        }
+    }
+
+    private static Period periodOf(int n, ChronoUnit unit) {
+        if (unit.isTimeBased()) {
+            throw new DateTimeException(unit + " cannot be converted to a java.time.Period");
+        }
+
+        switch (unit) {
+            case DAYS:
+                return Period.ofDays(n);
+            case WEEKS:
+                return Period.ofWeeks(n);
+            case MONTHS:
+                return Period.ofMonths(n);
+            case YEARS:
+                return Period.ofYears(n);
+            default:
+                throw new DateTimeException(unit + " cannot be converted to a java.time.Period");
+        }
+    }
+
+    /**
+     * Parses a duration string. If no units are specified in the string, it is
+     * assumed to be in milliseconds. The returned duration is in nanoseconds.
+     * The purpose of this function is to implement the duration-related methods
+     * in the ConfigObject interface.
+     *
+     * @param input              the string to parse
+     * @param originForException origin of the value being parsed
+     * @param pathForException   path to include in exceptions
+     * @return duration in nanoseconds
+     * @throws ConfigException if string is invalid
+     */
+    public static long parseDuration(String input,
+                                     ConfigOrigin originForException, String pathForException) {
+        String s = ConfigImplUtil.unicodeTrim(input);
+        String originalUnitString = getUnits(s);
+        String unitString = originalUnitString;
+        String numberString = ConfigImplUtil.unicodeTrim(s.substring(0, s.length()
+                - unitString.length()));
+        TimeUnit units = null;
+
+        // this would be caught later anyway, but the error message
+        // is more helpful if we check it here.
+        if (numberString.length() == 0)
+            throw new ConfigException.BadValue(originForException,
+                    pathForException, "No number in duration value '" + input
+                    + "'");
+
+        if (unitString.length() > 2 && !unitString.endsWith("s"))
+            unitString = unitString + "s";
+
+        // note that this is deliberately case-sensitive
+        if (unitString.equals("") || unitString.equals("ms") || unitString.equals("millis")
+                || unitString.equals("milliseconds")) {
+            units = TimeUnit.MILLISECONDS;
+        } else if (unitString.equals("us") || unitString.equals("micros") || unitString.equals("microseconds")) {
+            units = TimeUnit.MICROSECONDS;
+        } else if (unitString.equals("ns") || unitString.equals("nanos") || unitString.equals("nanoseconds")) {
+            units = TimeUnit.NANOSECONDS;
+        } else if (unitString.equals("d") || unitString.equals("days")) {
+            units = TimeUnit.DAYS;
+        } else if (unitString.equals("h") || unitString.equals("hours")) {
+            units = TimeUnit.HOURS;
+        } else if (unitString.equals("s") || unitString.equals("seconds")) {
+            units = TimeUnit.SECONDS;
+        } else if (unitString.equals("m") || unitString.equals("minutes")) {
+            units = TimeUnit.MINUTES;
+        } else {
+            throw new ConfigException.BadValue(originForException,
+                    pathForException, "Could not parse time unit '"
+                    + originalUnitString
+                    + "' (try ns, us, ms, s, m, h, d)");
+        }
+
+        try {
+            // if the string is purely digits, parse as an integer to avoid
+            // possible precision loss;
+            // otherwise as a double.
+            if (numberString.matches("[+-]?[0-9]+")) {
+                return units.toNanos(Long.parseLong(numberString));
+            } else {
+                long nanosInUnit = units.toNanos(1);
+                return (long) (Double.parseDouble(numberString) * nanosInUnit);
+            }
+        } catch (NumberFormatException e) {
+            throw new ConfigException.BadValue(originForException,
+                    pathForException, "Could not parse duration number '"
+                    + numberString + "'");
+        }
+    }
+
+    /**
+     * Parses a size-in-bytes string. If no units are specified in the string,
+     * it is assumed to be in bytes. The returned value is in bytes. The purpose
+     * of this function is to implement the size-in-bytes-related methods in the
+     * Config interface.
+     *
+     * @param input              the string to parse
+     * @param originForException origin of the value being parsed
+     * @param pathForException   path to include in exceptions
+     * @return size in bytes
+     * @throws ConfigException if string is invalid
+     */
+    public static long parseBytes(String input, ConfigOrigin originForException,
+                                  String pathForException) {
+        String s = ConfigImplUtil.unicodeTrim(input);
+        String unitString = getUnits(s);
+        String numberString = ConfigImplUtil.unicodeTrim(s.substring(0,
+                s.length() - unitString.length()));
+
+        // this would be caught later anyway, but the error message
+        // is more helpful if we check it here.
+        if (numberString.length() == 0)
+            throw new ConfigException.BadValue(originForException,
+                    pathForException, "No number in size-in-bytes value '"
+                    + input + "'");
+
+        MemoryUnit units = MemoryUnit.parseUnit(unitString);
+
+        if (units == null) {
+            throw new ConfigException.BadValue(originForException, pathForException,
+                    "Could not parse size-in-bytes unit '" + unitString
+                            + "' (try k, K, kB, KiB, kilobytes, kibibytes)");
+        }
+
+        try {
+            BigInteger result;
+            // if the string is purely digits, parse as an integer to avoid
+            // possible precision loss; otherwise as a double.
+            if (numberString.matches("[0-9]+")) {
+                result = units.bytes.multiply(new BigInteger(numberString));
+            } else {
+                BigDecimal resultDecimal = (new BigDecimal(units.bytes)).multiply(new BigDecimal(numberString));
+                result = resultDecimal.toBigInteger();
+            }
+            if (result.bitLength() < 64)
+                return result.longValue();
+            else
+                throw new ConfigException.BadValue(originForException, pathForException,
+                        "size-in-bytes value is out of range for a 64-bit long: '" + input + "'");
+        } catch (NumberFormatException e) {
+            throw new ConfigException.BadValue(originForException, pathForException,
+                    "Could not parse size-in-bytes number '" + numberString + "'");
+        }
+    }
+
+    private static void addProblem(List<ConfigException.ValidationProblem> accumulator, Path path,
+                                   ConfigOrigin origin, String problem) {
+        accumulator.add(new ConfigException.ValidationProblem(path.render(), origin, problem));
+    }
+
+    private static String getDesc(ConfigValueType type) {
+        return type.name().toLowerCase();
+    }
+
+    private static String getDesc(ConfigValue refValue) {
+        if (refValue instanceof AbstractConfigObject obj) {
+            if (!obj.isEmpty())
+                return "object with keys " + obj.keySet();
+            else
+                return getDesc(refValue.valueType());
+        } else {
+            return getDesc(refValue.valueType());
+        }
+    }
+
+    private static void addMissing(List<ConfigException.ValidationProblem> accumulator,
+                                   String refDesc, Path path, ConfigOrigin origin) {
+        addProblem(accumulator, path, origin, "No setting at '" + path.render() + "', expecting: "
+                + refDesc);
+    }
+
+    private static void addMissing(List<ConfigException.ValidationProblem> accumulator,
+                                   ConfigValue refValue, Path path, ConfigOrigin origin) {
+        addMissing(accumulator, getDesc(refValue), path, origin);
+    }
+
+    // JavaBean stuff uses this
+    static void addMissing(List<ConfigException.ValidationProblem> accumulator,
+                           ConfigValueType refType, Path path, ConfigOrigin origin) {
+        addMissing(accumulator, getDesc(refType), path, origin);
+    }
+
+    private static void addWrongType(List<ConfigException.ValidationProblem> accumulator,
+                                     String refDesc, AbstractConfigValue actual, Path path) {
+        addProblem(accumulator, path, actual.origin(), "Wrong value type at '" + path.render()
+                + "', expecting: " + refDesc + " but got: "
+                + getDesc(actual));
+    }
+
+    private static void addWrongType(List<ConfigException.ValidationProblem> accumulator,
+                                     ConfigValue refValue, AbstractConfigValue actual, Path path) {
+        addWrongType(accumulator, getDesc(refValue), actual, path);
+    }
+
+    private static void addWrongType(List<ConfigException.ValidationProblem> accumulator,
+                                     ConfigValueType refType, AbstractConfigValue actual, Path path) {
+        addWrongType(accumulator, getDesc(refType), actual, path);
+    }
+
+    private static boolean couldBeNull(AbstractConfigValue v) {
+        return DefaultTransformer.transform(v, ConfigValueType.NULL)
+                .valueType() == ConfigValueType.NULL;
+    }
+
+    private static boolean haveCompatibleTypes(ConfigValue reference, AbstractConfigValue value) {
+        if (couldBeNull((AbstractConfigValue) reference)) {
+            // we allow any setting to be null
+            return true;
+        } else {
+            return haveCompatibleTypes(reference.valueType(), value);
+        }
+    }
+
+    private static boolean haveCompatibleTypes(ConfigValueType referenceType, AbstractConfigValue value) {
+        if (referenceType == ConfigValueType.NULL || couldBeNull(value)) {
+            // we allow any setting to be null
+            return true;
+        } else if (referenceType == ConfigValueType.OBJECT) {
+            return value instanceof AbstractConfigObject;
+        } else if (referenceType == ConfigValueType.LIST) {
+            // objects may be convertible to lists if they have numeric keys
+            return value instanceof SimpleConfigList || value instanceof SimpleConfigObject;
+        } else if (referenceType == ConfigValueType.STRING) {
+            // assume a string could be gotten as any non-collection type;
+            // allows things like getMilliseconds including domain-specific
+            // interpretations of strings
+            return true;
+        } else if (value instanceof ConfigString) {
+            // assume a string could be gotten as any non-collection type
+            return true;
+        } else {
+            return referenceType == value.valueType();
+        }
+    }
+
+    // path is null if we're at the root
+    private static void checkValidObject(Path path, AbstractConfigObject reference,
+                                         AbstractConfigObject value,
+                                         List<ConfigException.ValidationProblem> accumulator) {
+        for (Map.Entry<String, ConfigValue> entry : reference.entrySet()) {
+            String key = entry.getKey();
+
+            Path childPath;
+            if (path != null)
+                childPath = Path.newKey(key).prepend(path);
+            else
+                childPath = Path.newKey(key);
+
+            AbstractConfigValue v = value.get(key);
+            if (v == null) {
+                addMissing(accumulator, entry.getValue(), childPath, value.origin());
+            } else {
+                checkValid(childPath, entry.getValue(), v, accumulator);
+            }
+        }
+    }
+
+    private static void checkListCompatibility(Path path, SimpleConfigList listRef,
+                                               SimpleConfigList listValue, List<ConfigException.ValidationProblem> accumulator) {
+        if (listRef.isEmpty() || listValue.isEmpty()) {
+            // can't verify type, leave alone
+        } else {
+            AbstractConfigValue refElement = listRef.get(0);
+            for (ConfigValue elem : listValue) {
+                AbstractConfigValue e = (AbstractConfigValue) elem;
+                if (!haveCompatibleTypes(refElement, e)) {
+                    addProblem(accumulator, path, e.origin(), "List at '" + path.render()
+                            + "' contains wrong value type, expecting list of "
+                            + getDesc(refElement) + " but got element of type " + getDesc(e));
+                    // don't add a problem for every last array element
+                    break;
+                }
+            }
+        }
+    }
+
+    // Used by the JavaBean-based validator
+    static void checkValid(Path path, ConfigValueType referenceType, AbstractConfigValue value,
+                           List<ConfigException.ValidationProblem> accumulator) {
+        if (haveCompatibleTypes(referenceType, value)) {
+            if (referenceType == ConfigValueType.LIST && value instanceof SimpleConfigObject) {
+                // attempt conversion of indexed object to list
+                AbstractConfigValue listValue = DefaultTransformer.transform(value,
+                        ConfigValueType.LIST);
+                if (!(listValue instanceof SimpleConfigList))
+                    addWrongType(accumulator, referenceType, value, path);
+            }
+        } else {
+            addWrongType(accumulator, referenceType, value, path);
+        }
+    }
+
+    private static void checkValid(Path path, ConfigValue reference, AbstractConfigValue value,
+                                   List<ConfigException.ValidationProblem> accumulator) {
+        // Unmergeable is supposed to be impossible to encounter in here
+        // because we check for resolve status up front.
+
+        if (haveCompatibleTypes(reference, value)) {
+            if (reference instanceof AbstractConfigObject && value instanceof AbstractConfigObject) {
+                checkValidObject(path, (AbstractConfigObject) reference,
+                        (AbstractConfigObject) value, accumulator);
+            } else if (reference instanceof SimpleConfigList listRef && value instanceof SimpleConfigList listValue) {
+                checkListCompatibility(path, listRef, listValue, accumulator);
+            } else if (reference instanceof SimpleConfigList listRef && value instanceof SimpleConfigObject) {
+                // attempt conversion of indexed object to list
+                AbstractConfigValue listValue = DefaultTransformer.transform(value,
+                        ConfigValueType.LIST);
+                if (listValue instanceof SimpleConfigList)
+                    checkListCompatibility(path, listRef, (SimpleConfigList) listValue, accumulator);
+                else
+                    addWrongType(accumulator, reference, value, path);
+            }
+        } else {
+            addWrongType(accumulator, reference, value, path);
+        }
     }
 
     @Override
@@ -111,77 +550,11 @@ final class SimpleConfig implements Config, MergeableValue, Serializable {
         return object.isEmpty();
     }
 
-    private static void findPaths(Set<Map.Entry<String, ConfigValue>> entries, Path parent,
-            AbstractConfigObject obj) {
-        for (Map.Entry<String, ConfigValue> entry : obj.entrySet()) {
-            String elem = entry.getKey();
-            ConfigValue v = entry.getValue();
-            Path path = Path.newKey(elem);
-            if (parent != null)
-                path = path.prepend(parent);
-            if (v instanceof AbstractConfigObject) {
-                findPaths(entries, path, (AbstractConfigObject) v);
-            } else if (v instanceof ConfigNull) {
-                // nothing; nulls are conceptually not in a Config
-            } else {
-                entries.add(new AbstractMap.SimpleImmutableEntry<String, ConfigValue>(path.render(), v));
-            }
-        }
-    }
-
     @Override
     public Set<Map.Entry<String, ConfigValue>> entrySet() {
         Set<Map.Entry<String, ConfigValue>> entries = new HashSet<Map.Entry<String, ConfigValue>>();
         findPaths(entries, null, object);
         return entries;
-    }
-
-    static private AbstractConfigValue throwIfNull(AbstractConfigValue v, ConfigValueType expected, Path originalPath) {
-        if (v.valueType() == ConfigValueType.NULL)
-            throw new ConfigException.Null(v.origin(), originalPath.render(),
-                    expected != null ? expected.name() : null);
-        else
-            return v;
-    }
-
-    static private AbstractConfigValue findKey(AbstractConfigObject self, String key,
-            ConfigValueType expected, Path originalPath) {
-        return throwIfNull(findKeyOrNull(self, key, expected, originalPath), expected, originalPath);
-    }
-
-    static private AbstractConfigValue findKeyOrNull(AbstractConfigObject self, String key,
-            ConfigValueType expected, Path originalPath) {
-        AbstractConfigValue v = self.peekAssumingResolved(key, originalPath);
-        if (v == null)
-            throw new ConfigException.Missing(originalPath.render());
-
-        if (expected != null)
-            v = DefaultTransformer.transform(v, expected);
-
-        if (expected != null && (v.valueType() != expected && v.valueType() != ConfigValueType.NULL))
-            throw new ConfigException.WrongType(v.origin(), originalPath.render(), expected.name(),
-                    v.valueType().name());
-        else
-            return v;
-    }
-
-    static private AbstractConfigValue findOrNull(AbstractConfigObject self, Path path,
-            ConfigValueType expected, Path originalPath) {
-        try {
-            String key = path.first();
-            Path next = path.remainder();
-            if (next == null) {
-                return findKeyOrNull(self, key, expected, originalPath);
-            } else {
-                AbstractConfigObject o = (AbstractConfigObject) findKey(self, key,
-                        ConfigValueType.OBJECT,
-                        originalPath.subPath(0, originalPath.length() - next.length()));
-                assert (o != null); // missing was supposed to throw
-                return findOrNull(o, next, expected, originalPath);
-            }
-        } catch (ConfigException.NotResolved e) {
-            throw ConfigImpl.improveNotResolved(path, e);
-        }
     }
 
     AbstractConfigValue find(Path pathExpression, ConfigValueType expected, Path originalPath) {
@@ -314,8 +687,8 @@ final class SimpleConfig implements Config, MergeableValue, Serializable {
     public long getDuration(String path, TimeUnit unit) {
         ConfigValue v = find(path, ConfigValueType.STRING);
         long result = unit.convert(
-                       parseDuration((String) v.unwrapped(), v.origin(), path),
-                       TimeUnit.NANOSECONDS);
+                parseDuration((String) v.unwrapped(), v.origin(), path),
+                TimeUnit.NANOSECONDS);
         return result;
     }
 
@@ -327,23 +700,23 @@ final class SimpleConfig implements Config, MergeableValue, Serializable {
     }
 
     @Override
-    public Period getPeriod(String path){
+    public Period getPeriod(String path) {
         ConfigValue v = find(path, ConfigValueType.STRING);
         return parsePeriod((String) v.unwrapped(), v.origin(), path);
     }
 
     @Override
-    public TemporalAmount getTemporal(String path){
-        try{
+    public TemporalAmount getTemporal(String path) {
+        try {
             return getDuration(path);
-        } catch (ConfigException.BadValue e){
+        } catch (ConfigException.BadValue e) {
             return getPeriod(path);
         }
     }
 
     @SuppressWarnings("unchecked")
     private <T> List<T> getHomogeneousUnwrappedList(String path,
-            ConfigValueType expected) {
+                                                    ConfigValueType expected) {
         List<T> l = new ArrayList<T>();
         List<? extends ConfigValue> list = getList(path);
         for (ConfigValue cv : list) {
@@ -355,7 +728,7 @@ final class SimpleConfig implements Config, MergeableValue, Serializable {
             if (v.valueType() != expected)
                 throw new ConfigException.WrongType(v.origin(), path,
                         "list of " + expected.name(), "list of "
-                                + v.valueType().name());
+                        + v.valueType().name());
             l.add((T) v.unwrapped());
         }
         return l;
@@ -429,9 +802,9 @@ final class SimpleConfig implements Config, MergeableValue, Serializable {
                 }
             }
             throw new ConfigException.BadValue(
-              enumConfigValue.origin(), path,
-              String.format("The enum class %s has no constant of the name '%s' (should be one of %s.)",
-                enumClass.getSimpleName(), enumName, enumNames));
+                    enumConfigValue.origin(), path,
+                    String.format("The enum class %s has no constant of the name '%s' (should be one of %s.)",
+                            enumClass.getSimpleName(), enumName, enumNames));
         }
     }
 
@@ -449,7 +822,7 @@ final class SimpleConfig implements Config, MergeableValue, Serializable {
             if (v.valueType() != expected)
                 throw new ConfigException.WrongType(v.origin(), path,
                         "list of " + expected.name(), "list of "
-                                + v.valueType().name());
+                        + v.valueType().name());
             l.add((T) v);
         }
         return l;
@@ -494,7 +867,7 @@ final class SimpleConfig implements Config, MergeableValue, Serializable {
             } else {
                 throw new ConfigException.WrongType(v.origin(), path,
                         "memory size string or number of bytes", v.valueType()
-                                .name());
+                        .name());
             }
         }
         return l;
@@ -517,14 +890,14 @@ final class SimpleConfig implements Config, MergeableValue, Serializable {
         for (ConfigValue v : list) {
             if (v.valueType() == ConfigValueType.NUMBER) {
                 Long n = unit.convert(
-                           ((Number) v.unwrapped()).longValue(),
-                           TimeUnit.MILLISECONDS);
+                        ((Number) v.unwrapped()).longValue(),
+                        TimeUnit.MILLISECONDS);
                 l.add(n);
             } else if (v.valueType() == ConfigValueType.STRING) {
                 String s = (String) v.unwrapped();
                 Long n = unit.convert(
-                           parseDuration(s, v.origin(), path),
-                           TimeUnit.NANOSECONDS);
+                        parseDuration(s, v.origin(), path),
+                        TimeUnit.NANOSECONDS);
                 l.add(n);
             } else {
                 throw new ConfigException.WrongType(v.origin(), path,
@@ -570,7 +943,7 @@ final class SimpleConfig implements Config, MergeableValue, Serializable {
     }
 
     @Override
-    public final boolean equals(Object other) {
+    public boolean equals(Object other) {
         if (other instanceof SimpleConfig) {
             return object.equals(((SimpleConfig) other).object);
         } else {
@@ -579,7 +952,7 @@ final class SimpleConfig implements Config, MergeableValue, Serializable {
     }
 
     @Override
-    public final int hashCode() {
+    public int hashCode() {
         // we do the "41*" just so our hash code won't match that of the
         // underlying object. there's no real reason it can't match, but
         // making it not match might catch some kinds of bug.
@@ -591,496 +964,8 @@ final class SimpleConfig implements Config, MergeableValue, Serializable {
         return "Config(" + object.toString() + ")";
     }
 
-    private static String getUnits(String s) {
-        int i = s.length() - 1;
-        while (i >= 0) {
-            char c = s.charAt(i);
-            if (!Character.isLetter(c))
-                break;
-            i -= 1;
-        }
-        return s.substring(i + 1);
-    }
-
-    /**
-     * Parses a period string. If no units are specified in the string, it is
-     * assumed to be in days. The returned period is in days.
-     * The purpose of this function is to implement the period-related methods
-     * in the ConfigObject interface.
-     *
-     * @param input
-     *            the string to parse
-     * @param originForException
-     *            origin of the value being parsed
-     * @param pathForException
-     *            path to include in exceptions
-     * @return duration in days
-     * @throws ConfigException
-     *             if string is invalid
-     */
-    public static Period parsePeriod(String input,
-                                     ConfigOrigin originForException, String pathForException) {
-        String s = ConfigImplUtil.unicodeTrim(input);
-        String originalUnitString = getUnits(s);
-        String unitString = originalUnitString;
-        String numberString = ConfigImplUtil.unicodeTrim(s.substring(0, s.length()
-                - unitString.length()));
-        ChronoUnit units;
-
-        // this would be caught later anyway, but the error message
-        // is more helpful if we check it here.
-        if (numberString.length() == 0)
-            throw new ConfigException.BadValue(originForException,
-                    pathForException, "No number in period value '" + input
-                    + "'");
-
-        if (unitString.length() > 2 && !unitString.endsWith("s"))
-            unitString = unitString + "s";
-
-        // note that this is deliberately case-sensitive
-        if (unitString.equals("") || unitString.equals("d") || unitString.equals("days")) {
-            units = ChronoUnit.DAYS;
-
-        } else if (unitString.equals("w") || unitString.equals("weeks")) {
-            units = ChronoUnit.WEEKS;
-
-        } else if (unitString.equals("m") || unitString.equals("mo") || unitString.equals("months")) {
-            units = ChronoUnit.MONTHS;
-
-        } else if (unitString.equals("y") || unitString.equals("years")) {
-            units = ChronoUnit.YEARS;
-
-        } else {
-            throw new ConfigException.BadValue(originForException,
-                    pathForException, "Could not parse time unit '"
-                    + originalUnitString
-                    + "' (try d, w, mo, y)");
-        }
-
-        try {
-           return periodOf(Integer.parseInt(numberString), units);
-        } catch (NumberFormatException e) {
-            throw new ConfigException.BadValue(originForException,
-                    pathForException, "Could not parse duration number '"
-                    + numberString + "'");
-        }
-    }
-
-
-    private static Period periodOf(int n, ChronoUnit unit){
-        if(unit.isTimeBased()){
-            throw new DateTimeException(unit + " cannot be converted to a java.time.Period");
-        }
-
-        switch (unit){
-            case DAYS:
-                return Period.ofDays(n);
-            case WEEKS:
-                return Period.ofWeeks(n);
-            case MONTHS:
-                return Period.ofMonths(n);
-            case YEARS:
-                return Period.ofYears(n);
-            default:
-                throw new DateTimeException(unit + " cannot be converted to a java.time.Period");
-        }
-    }
-
-    /**
-     * Parses a duration string. If no units are specified in the string, it is
-     * assumed to be in milliseconds. The returned duration is in nanoseconds.
-     * The purpose of this function is to implement the duration-related methods
-     * in the ConfigObject interface.
-     *
-     * @param input
-     *            the string to parse
-     * @param originForException
-     *            origin of the value being parsed
-     * @param pathForException
-     *            path to include in exceptions
-     * @return duration in nanoseconds
-     * @throws ConfigException
-     *             if string is invalid
-     */
-    public static long parseDuration(String input,
-            ConfigOrigin originForException, String pathForException) {
-        String s = ConfigImplUtil.unicodeTrim(input);
-        String originalUnitString = getUnits(s);
-        String unitString = originalUnitString;
-        String numberString = ConfigImplUtil.unicodeTrim(s.substring(0, s.length()
-                - unitString.length()));
-        TimeUnit units = null;
-
-        // this would be caught later anyway, but the error message
-        // is more helpful if we check it here.
-        if (numberString.length() == 0)
-            throw new ConfigException.BadValue(originForException,
-                    pathForException, "No number in duration value '" + input
-                            + "'");
-
-        if (unitString.length() > 2 && !unitString.endsWith("s"))
-            unitString = unitString + "s";
-
-        // note that this is deliberately case-sensitive
-        if (unitString.equals("") || unitString.equals("ms") || unitString.equals("millis")
-                || unitString.equals("milliseconds")) {
-            units = TimeUnit.MILLISECONDS;
-        } else if (unitString.equals("us") || unitString.equals("micros") || unitString.equals("microseconds")) {
-            units = TimeUnit.MICROSECONDS;
-        } else if (unitString.equals("ns") || unitString.equals("nanos") || unitString.equals("nanoseconds")) {
-            units = TimeUnit.NANOSECONDS;
-        } else if (unitString.equals("d") || unitString.equals("days")) {
-            units = TimeUnit.DAYS;
-        } else if (unitString.equals("h") || unitString.equals("hours")) {
-            units = TimeUnit.HOURS;
-        } else if (unitString.equals("s") || unitString.equals("seconds")) {
-            units = TimeUnit.SECONDS;
-        } else if (unitString.equals("m") || unitString.equals("minutes")) {
-            units = TimeUnit.MINUTES;
-        } else {
-            throw new ConfigException.BadValue(originForException,
-                    pathForException, "Could not parse time unit '"
-                            + originalUnitString
-                            + "' (try ns, us, ms, s, m, h, d)");
-        }
-
-        try {
-            // if the string is purely digits, parse as an integer to avoid
-            // possible precision loss;
-            // otherwise as a double.
-            if (numberString.matches("[+-]?[0-9]+")) {
-                return units.toNanos(Long.parseLong(numberString));
-            } else {
-                long nanosInUnit = units.toNanos(1);
-                return (long) (Double.parseDouble(numberString) * nanosInUnit);
-            }
-        } catch (NumberFormatException e) {
-            throw new ConfigException.BadValue(originForException,
-                    pathForException, "Could not parse duration number '"
-                            + numberString + "'");
-        }
-    }
-
-    private static enum MemoryUnit {
-        BYTES("", 1024, 0),
-
-        KILOBYTES("kilo", 1000, 1),
-        MEGABYTES("mega", 1000, 2),
-        GIGABYTES("giga", 1000, 3),
-        TERABYTES("tera", 1000, 4),
-        PETABYTES("peta", 1000, 5),
-        EXABYTES("exa", 1000, 6),
-        ZETTABYTES("zetta", 1000, 7),
-        YOTTABYTES("yotta", 1000, 8),
-
-        KIBIBYTES("kibi", 1024, 1),
-        MEBIBYTES("mebi", 1024, 2),
-        GIBIBYTES("gibi", 1024, 3),
-        TEBIBYTES("tebi", 1024, 4),
-        PEBIBYTES("pebi", 1024, 5),
-        EXBIBYTES("exbi", 1024, 6),
-        ZEBIBYTES("zebi", 1024, 7),
-        YOBIBYTES("yobi", 1024, 8);
-
-        final String prefix;
-        final int powerOf;
-        final int power;
-        final BigInteger bytes;
-
-        MemoryUnit(String prefix, int powerOf, int power) {
-            this.prefix = prefix;
-            this.powerOf = powerOf;
-            this.power = power;
-            this.bytes = BigInteger.valueOf(powerOf).pow(power);
-        }
-
-        private static Map<String, MemoryUnit> makeUnitsMap() {
-            Map<String, MemoryUnit> map = new HashMap<String, MemoryUnit>();
-            for (MemoryUnit unit : MemoryUnit.values()) {
-                map.put(unit.prefix + "byte", unit);
-                map.put(unit.prefix + "bytes", unit);
-                if (unit.prefix.length() == 0) {
-                    map.put("b", unit);
-                    map.put("B", unit);
-                    map.put("", unit); // no unit specified means bytes
-                } else {
-                    String first = unit.prefix.substring(0, 1);
-                    String firstUpper = first.toUpperCase();
-                    if (unit.powerOf == 1024) {
-                        map.put(first, unit);             // 512m
-                        map.put(firstUpper, unit);        // 512M
-                        map.put(firstUpper + "i", unit);  // 512Mi
-                        map.put(firstUpper + "iB", unit); // 512MiB
-                    } else if (unit.powerOf == 1000) {
-                        if (unit.power == 1) {
-                            map.put(first + "B", unit);      // 512kB
-                        } else {
-                            map.put(firstUpper + "B", unit); // 512MB
-                        }
-                    } else {
-                        throw new RuntimeException("broken MemoryUnit enum");
-                    }
-                }
-            }
-            return map;
-        }
-
-        private static Map<String, MemoryUnit> unitsMap = makeUnitsMap();
-
-        static MemoryUnit parseUnit(String unit) {
-            return unitsMap.get(unit);
-        }
-    }
-
-    /**
-     * Parses a size-in-bytes string. If no units are specified in the string,
-     * it is assumed to be in bytes. The returned value is in bytes. The purpose
-     * of this function is to implement the size-in-bytes-related methods in the
-     * Config interface.
-     *
-     * @param input
-     *            the string to parse
-     * @param originForException
-     *            origin of the value being parsed
-     * @param pathForException
-     *            path to include in exceptions
-     * @return size in bytes
-     * @throws ConfigException
-     *             if string is invalid
-     */
-    public static long parseBytes(String input, ConfigOrigin originForException,
-            String pathForException) {
-        String s = ConfigImplUtil.unicodeTrim(input);
-        String unitString = getUnits(s);
-        String numberString = ConfigImplUtil.unicodeTrim(s.substring(0,
-                s.length() - unitString.length()));
-
-        // this would be caught later anyway, but the error message
-        // is more helpful if we check it here.
-        if (numberString.length() == 0)
-            throw new ConfigException.BadValue(originForException,
-                    pathForException, "No number in size-in-bytes value '"
-                            + input + "'");
-
-        MemoryUnit units = MemoryUnit.parseUnit(unitString);
-
-        if (units == null) {
-            throw new ConfigException.BadValue(originForException, pathForException,
-                    "Could not parse size-in-bytes unit '" + unitString
-                            + "' (try k, K, kB, KiB, kilobytes, kibibytes)");
-        }
-
-        try {
-            BigInteger result;
-            // if the string is purely digits, parse as an integer to avoid
-            // possible precision loss; otherwise as a double.
-            if (numberString.matches("[0-9]+")) {
-                result = units.bytes.multiply(new BigInteger(numberString));
-            } else {
-                BigDecimal resultDecimal = (new BigDecimal(units.bytes)).multiply(new BigDecimal(numberString));
-                result = resultDecimal.toBigInteger();
-            }
-            if (result.bitLength() < 64)
-                return result.longValue();
-            else
-                throw new ConfigException.BadValue(originForException, pathForException,
-                        "size-in-bytes value is out of range for a 64-bit long: '" + input + "'");
-        } catch (NumberFormatException e) {
-            throw new ConfigException.BadValue(originForException, pathForException,
-                    "Could not parse size-in-bytes number '" + numberString + "'");
-        }
-    }
-
     private AbstractConfigValue peekPath(Path path) {
         return root().peekPath(path);
-    }
-
-    private static void addProblem(List<ConfigException.ValidationProblem> accumulator, Path path,
-            ConfigOrigin origin, String problem) {
-        accumulator.add(new ConfigException.ValidationProblem(path.render(), origin, problem));
-    }
-
-    private static String getDesc(ConfigValueType type) {
-        return type.name().toLowerCase();
-    }
-
-    private static String getDesc(ConfigValue refValue) {
-        if (refValue instanceof AbstractConfigObject) {
-            AbstractConfigObject obj = (AbstractConfigObject) refValue;
-            if (!obj.isEmpty())
-                return "object with keys " + obj.keySet();
-            else
-                return getDesc(refValue.valueType());
-        } else {
-            return getDesc(refValue.valueType());
-        }
-    }
-
-    private static void addMissing(List<ConfigException.ValidationProblem> accumulator,
-                                   String refDesc, Path path, ConfigOrigin origin) {
-        addProblem(accumulator, path, origin, "No setting at '" + path.render() + "', expecting: "
-                   + refDesc);
-    }
-
-    private static void addMissing(List<ConfigException.ValidationProblem> accumulator,
-            ConfigValue refValue, Path path, ConfigOrigin origin) {
-        addMissing(accumulator, getDesc(refValue), path, origin);
-    }
-
-    // JavaBean stuff uses this
-    static void addMissing(List<ConfigException.ValidationProblem> accumulator,
-            ConfigValueType refType, Path path, ConfigOrigin origin) {
-        addMissing(accumulator, getDesc(refType), path, origin);
-    }
-
-    private static void addWrongType(List<ConfigException.ValidationProblem> accumulator,
-            String refDesc, AbstractConfigValue actual, Path path) {
-        addProblem(accumulator, path, actual.origin(), "Wrong value type at '" + path.render()
-                   + "', expecting: " + refDesc + " but got: "
-                   + getDesc(actual));
-    }
-
-    private static void addWrongType(List<ConfigException.ValidationProblem> accumulator,
-            ConfigValue refValue, AbstractConfigValue actual, Path path) {
-        addWrongType(accumulator, getDesc(refValue), actual, path);
-    }
-
-    private static void addWrongType(List<ConfigException.ValidationProblem> accumulator,
-            ConfigValueType refType, AbstractConfigValue actual, Path path) {
-        addWrongType(accumulator, getDesc(refType), actual, path);
-    }
-
-    private static boolean couldBeNull(AbstractConfigValue v) {
-        return DefaultTransformer.transform(v, ConfigValueType.NULL)
-                .valueType() == ConfigValueType.NULL;
-    }
-
-    private static boolean haveCompatibleTypes(ConfigValue reference, AbstractConfigValue value) {
-        if (couldBeNull((AbstractConfigValue) reference)) {
-            // we allow any setting to be null
-            return true;
-        } else {
-            return haveCompatibleTypes(reference.valueType(), value);
-        }
-    }
-
-    private static boolean haveCompatibleTypes(ConfigValueType referenceType, AbstractConfigValue value) {
-        if (referenceType == ConfigValueType.NULL || couldBeNull(value)) {
-            // we allow any setting to be null
-            return true;
-        } else if (referenceType == ConfigValueType.OBJECT) {
-            if (value instanceof AbstractConfigObject) {
-                return true;
-            } else {
-                return false;
-            }
-        } else if (referenceType == ConfigValueType.LIST) {
-            // objects may be convertible to lists if they have numeric keys
-            if (value instanceof SimpleConfigList || value instanceof SimpleConfigObject) {
-                return true;
-            } else {
-                return false;
-            }
-        } else if (referenceType == ConfigValueType.STRING) {
-            // assume a string could be gotten as any non-collection type;
-            // allows things like getMilliseconds including domain-specific
-            // interpretations of strings
-            return true;
-        } else if (value instanceof ConfigString) {
-            // assume a string could be gotten as any non-collection type
-            return true;
-        } else {
-            if (referenceType == value.valueType()) {
-                return true;
-            } else {
-                return false;
-            }
-        }
-    }
-
-    // path is null if we're at the root
-    private static void checkValidObject(Path path, AbstractConfigObject reference,
-            AbstractConfigObject value,
-            List<ConfigException.ValidationProblem> accumulator) {
-        for (Map.Entry<String, ConfigValue> entry : reference.entrySet()) {
-            String key = entry.getKey();
-
-            Path childPath;
-            if (path != null)
-                childPath = Path.newKey(key).prepend(path);
-            else
-                childPath = Path.newKey(key);
-
-            AbstractConfigValue v = value.get(key);
-            if (v == null) {
-                addMissing(accumulator, entry.getValue(), childPath, value.origin());
-            } else {
-                checkValid(childPath, entry.getValue(), v, accumulator);
-            }
-        }
-    }
-
-    private static void checkListCompatibility(Path path, SimpleConfigList listRef,
-            SimpleConfigList listValue, List<ConfigException.ValidationProblem> accumulator) {
-        if (listRef.isEmpty() || listValue.isEmpty()) {
-            // can't verify type, leave alone
-        } else {
-            AbstractConfigValue refElement = listRef.get(0);
-            for (ConfigValue elem : listValue) {
-                AbstractConfigValue e = (AbstractConfigValue) elem;
-                if (!haveCompatibleTypes(refElement, e)) {
-                    addProblem(accumulator, path, e.origin(), "List at '" + path.render()
-                            + "' contains wrong value type, expecting list of "
-                            + getDesc(refElement) + " but got element of type " + getDesc(e));
-                    // don't add a problem for every last array element
-                    break;
-                }
-            }
-        }
-    }
-
-    // Used by the JavaBean-based validator
-    static void checkValid(Path path, ConfigValueType referenceType, AbstractConfigValue value,
-            List<ConfigException.ValidationProblem> accumulator) {
-        if (haveCompatibleTypes(referenceType, value)) {
-            if (referenceType == ConfigValueType.LIST && value instanceof SimpleConfigObject) {
-                // attempt conversion of indexed object to list
-                AbstractConfigValue listValue = DefaultTransformer.transform(value,
-                        ConfigValueType.LIST);
-                if (!(listValue instanceof SimpleConfigList))
-                    addWrongType(accumulator, referenceType, value, path);
-            }
-        } else {
-            addWrongType(accumulator, referenceType, value, path);
-        }
-    }
-
-    private static void checkValid(Path path, ConfigValue reference, AbstractConfigValue value,
-            List<ConfigException.ValidationProblem> accumulator) {
-        // Unmergeable is supposed to be impossible to encounter in here
-        // because we check for resolve status up front.
-
-        if (haveCompatibleTypes(reference, value)) {
-            if (reference instanceof AbstractConfigObject && value instanceof AbstractConfigObject) {
-                checkValidObject(path, (AbstractConfigObject) reference,
-                        (AbstractConfigObject) value, accumulator);
-            } else if (reference instanceof SimpleConfigList && value instanceof SimpleConfigList) {
-                SimpleConfigList listRef = (SimpleConfigList) reference;
-                SimpleConfigList listValue = (SimpleConfigList) value;
-                checkListCompatibility(path, listRef, listValue, accumulator);
-            } else if (reference instanceof SimpleConfigList && value instanceof SimpleConfigObject) {
-                // attempt conversion of indexed object to list
-                SimpleConfigList listRef = (SimpleConfigList) reference;
-                AbstractConfigValue listValue = DefaultTransformer.transform(value,
-                        ConfigValueType.LIST);
-                if (listValue instanceof SimpleConfigList)
-                    checkListCompatibility(path, listRef, (SimpleConfigList) listValue, accumulator);
-                else
-                    addWrongType(accumulator, reference, value, path);
-            }
-        } else {
-            addWrongType(accumulator, reference, value, path);
-        }
     }
 
     @Override
@@ -1164,5 +1049,75 @@ final class SimpleConfig implements Config, MergeableValue, Serializable {
     // serialization all goes through SerializedConfigValue
     private Object writeReplace() throws ObjectStreamException {
         return new SerializedConfigValue(this);
+    }
+
+    private enum MemoryUnit {
+        BYTES("", 1024, 0),
+
+        KILOBYTES("kilo", 1000, 1),
+        MEGABYTES("mega", 1000, 2),
+        GIGABYTES("giga", 1000, 3),
+        TERABYTES("tera", 1000, 4),
+        PETABYTES("peta", 1000, 5),
+        EXABYTES("exa", 1000, 6),
+        ZETTABYTES("zetta", 1000, 7),
+        YOTTABYTES("yotta", 1000, 8),
+
+        KIBIBYTES("kibi", 1024, 1),
+        MEBIBYTES("mebi", 1024, 2),
+        GIBIBYTES("gibi", 1024, 3),
+        TEBIBYTES("tebi", 1024, 4),
+        PEBIBYTES("pebi", 1024, 5),
+        EXBIBYTES("exbi", 1024, 6),
+        ZEBIBYTES("zebi", 1024, 7),
+        YOBIBYTES("yobi", 1024, 8);
+
+        private static final Map<String, MemoryUnit> unitsMap = makeUnitsMap();
+        final String prefix;
+        final int powerOf;
+        final int power;
+        final BigInteger bytes;
+
+        MemoryUnit(String prefix, int powerOf, int power) {
+            this.prefix = prefix;
+            this.powerOf = powerOf;
+            this.power = power;
+            this.bytes = BigInteger.valueOf(powerOf).pow(power);
+        }
+
+        private static Map<String, MemoryUnit> makeUnitsMap() {
+            Map<String, MemoryUnit> map = new HashMap<String, MemoryUnit>();
+            for (MemoryUnit unit : MemoryUnit.values()) {
+                map.put(unit.prefix + "byte", unit);
+                map.put(unit.prefix + "bytes", unit);
+                if (unit.prefix.length() == 0) {
+                    map.put("b", unit);
+                    map.put("B", unit);
+                    map.put("", unit); // no unit specified means bytes
+                } else {
+                    String first = unit.prefix.substring(0, 1);
+                    String firstUpper = first.toUpperCase();
+                    if (unit.powerOf == 1024) {
+                        map.put(first, unit);             // 512m
+                        map.put(firstUpper, unit);        // 512M
+                        map.put(firstUpper + "i", unit);  // 512Mi
+                        map.put(firstUpper + "iB", unit); // 512MiB
+                    } else if (unit.powerOf == 1000) {
+                        if (unit.power == 1) {
+                            map.put(first + "B", unit);      // 512kB
+                        } else {
+                            map.put(firstUpper + "B", unit); // 512MB
+                        }
+                    } else {
+                        throw new RuntimeException("broken MemoryUnit enum");
+                    }
+                }
+            }
+            return map;
+        }
+
+        static MemoryUnit parseUnit(String unit) {
+            return unitsMap.get(unit);
+        }
     }
 }

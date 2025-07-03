@@ -1,5 +1,5 @@
 /**
- *   Copyright (C) 2011-2012 Typesafe Inc. <http://typesafe.com>
+ * Copyright (C) 2011-2012 Typesafe Inc. <http://typesafe.com>
  */
 package com.drtshock.playervaults.lib.com.typesafe.config;
 
@@ -23,14 +23,13 @@ import java.util.List;
  * <p>
  * The {@link ConfigValue#valueType} method on a list returns
  * {@link ConfigValueType#LIST}.
- * 
+ *
  * <p>
  * <em>Do not implement {@code ConfigList}</em>; it should only be implemented
  * by the config library. Arbitrary implementations will not work because the
  * library internals assume a specific concrete implementation. Also, this
  * interface is likely to grow new methods over time, so third-party
  * implementations will break.
- * 
  */
 public interface ConfigList extends List<ConfigValue>, ConfigValue {
 

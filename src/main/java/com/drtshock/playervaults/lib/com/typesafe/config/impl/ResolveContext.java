@@ -1,13 +1,9 @@
 package com.drtshock.playervaults.lib.com.typesafe.config.impl;
 
-import java.util.Collections;
-import java.util.IdentityHashMap;
-import java.util.List;
-import java.util.ArrayList;
-import java.util.Set;
-
 import com.drtshock.playervaults.lib.com.typesafe.config.ConfigException;
 import com.drtshock.playervaults.lib.com.typesafe.config.ConfigResolveOptions;
+
+import java.util.*;
 
 final class ResolveContext {
     final private ResolveMemos memos;
@@ -27,16 +23,12 @@ final class ResolveContext {
     final private Set<AbstractConfigValue> cycleMarkers;
 
     ResolveContext(ResolveMemos memos, ConfigResolveOptions options, Path restrictToChild,
-            List<AbstractConfigValue> resolveStack, Set<AbstractConfigValue> cycleMarkers) {
+                   List<AbstractConfigValue> resolveStack, Set<AbstractConfigValue> cycleMarkers) {
         this.memos = memos;
         this.options = options;
         this.restrictToChild = restrictToChild;
         this.resolveStack = Collections.unmodifiableList(resolveStack);
         this.cycleMarkers = Collections.unmodifiableSet(cycleMarkers);
-    }
-
-    private static Set<AbstractConfigValue> newCycleMarkers() {
-        return Collections.newSetFromMap(new IdentityHashMap<AbstractConfigValue, Boolean>());
     }
 
     ResolveContext(ConfigResolveOptions options, Path restrictToChild) {
@@ -45,6 +37,24 @@ final class ResolveContext {
         this(new ResolveMemos(), options, restrictToChild, new ArrayList<AbstractConfigValue>(), newCycleMarkers());
         if (ConfigImpl.traceSubstitutionsEnabled())
             ConfigImpl.trace(depth(), "ResolveContext restrict to child " + restrictToChild);
+    }
+
+    private static Set<AbstractConfigValue> newCycleMarkers() {
+        return Collections.newSetFromMap(new IdentityHashMap<AbstractConfigValue, Boolean>());
+    }
+
+    static AbstractConfigValue resolve(AbstractConfigValue value, AbstractConfigObject root,
+                                       ConfigResolveOptions options) {
+        ResolveSource source = new ResolveSource(root);
+        ResolveContext context = new ResolveContext(options, null /* restrictToChild */);
+
+        try {
+            return context.resolve(value, source).value;
+        } catch (AbstractConfigValue.NotPossibleToResolve e) {
+            // ConfigReference was supposed to catch NotPossibleToResolve
+            throw new ConfigException.BugOrBroken(
+                    "NotPossibleToResolve was thrown from an outermost resolve", e);
+        }
     }
 
     ResolveContext addCycleMarker(AbstractConfigValue value) {
@@ -218,20 +228,6 @@ final class ResolveContext {
             }
 
             return ResolveResult.make(withMemo, resolved);
-        }
-    }
-
-    static AbstractConfigValue resolve(AbstractConfigValue value, AbstractConfigObject root,
-            ConfigResolveOptions options) {
-        ResolveSource source = new ResolveSource(root);
-        ResolveContext context = new ResolveContext(options, null /* restrictToChild */);
-
-        try {
-            return context.resolve(value, source).value;
-        } catch (AbstractConfigValue.NotPossibleToResolve e) {
-            // ConfigReference was supposed to catch NotPossibleToResolve
-            throw new ConfigException.BugOrBroken(
-                    "NotPossibleToResolve was thrown from an outermost resolve", e);
         }
     }
 }

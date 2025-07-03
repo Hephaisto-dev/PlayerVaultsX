@@ -1,5 +1,5 @@
 /**
- *   Copyright (C) 2015 Typesafe Inc. <http://typesafe.com>
+ * Copyright (C) 2015 Typesafe Inc. <http://typesafe.com>
  */
 package com.drtshock.playervaults.lib.com.typesafe.config;
 
@@ -22,9 +22,10 @@ public final class ConfigMemorySize {
     /**
      * Constructs a ConfigMemorySize representing the given
      * number of bytes.
-     * @since 1.3.0
+     *
      * @param bytes a number of bytes
      * @return an instance representing the number of bytes
+     * @since 1.3.0
      */
     public static ConfigMemorySize ofBytes(long bytes) {
         return new ConfigMemorySize(bytes);
@@ -32,8 +33,9 @@ public final class ConfigMemorySize {
 
     /**
      * Gets the size in bytes.
-     * @since 1.3.0
+     *
      * @return how many bytes
+     * @since 1.3.0
      */
     public long toBytes() {
         return bytes;
@@ -47,7 +49,7 @@ public final class ConfigMemorySize {
     @Override
     public boolean equals(Object other) {
         if (other instanceof ConfigMemorySize) {
-            return ((ConfigMemorySize)other).bytes == this.bytes;
+            return ((ConfigMemorySize) other).bytes == this.bytes;
         } else {
             return false;
         }
