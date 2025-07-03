@@ -14,6 +14,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.logging.Level;
 
 public class YamlVaultStorage implements VaultStorage {
 
@@ -173,12 +174,24 @@ public class YamlVaultStorage implements VaultStorage {
         if (cachedVaultFiles.containsKey(holder)) {
             cachedVaultFiles.put(holder, yaml);
         }
+
+        final boolean backups = PlayerVaults.getInstance().isBackupsEnabled();
+        final File backupsFolder = PlayerVaults.getInstance().getBackupsFolder();
         final File file = new File(directory, holder + ".yml");
+        if (file.exists() && backups) {
+            boolean renamedTo = file.renameTo(new File(backupsFolder, holder + ".yml"));
+            if (!renamedTo) {
+                PlayerVaults.getInstance().addException(new IllegalStateException("Failed to rename vault file for: " + holder));
+                PlayerVaults.getInstance().getLogger().log(Level.SEVERE, "Failed to rename vault file for: " + holder);
+            } else {
+                PlayerVaults.debug("Renamed vault file for " + holder + " to backups folder.");
+            }
+        }
         try {
             yaml.save(file);
         } catch (IOException e) {
             PlayerVaults.getInstance().addException(new IllegalStateException("Failed to save vault file for: " + holder, e));
-            PlayerVaults.getInstance().getLogger().severe("Failed to save vault file for: " + holder);
+            PlayerVaults.getInstance().getLogger().log(Level.SEVERE, "Failed to save vault file for: " + holder, e);
         }
         PlayerVaults.debug("Saved vault for " + holder);
     }

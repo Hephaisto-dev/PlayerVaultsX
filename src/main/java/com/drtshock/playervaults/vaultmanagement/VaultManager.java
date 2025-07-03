@@ -105,10 +105,8 @@ public class VaultManager {
             // Not a player
         }
 
-        String title = PlayerVaults.getInstance().getVaultTitle(String.valueOf(number));
         VaultViewInfo info = new VaultViewInfo(name, number);
         Inventory inv;
-        VaultHolder vaultHolder = new VaultHolder(number);
         if (PlayerVaults.getInstance().getOpenInventories().containsKey(info.toString())) {
             PlayerVaults.debug("Already open");
             inv = PlayerVaults.getInstance().getOpenInventories().get(info.toString());
