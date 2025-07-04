@@ -8,18 +8,13 @@ import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 
 import java.sql.*;
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Set;
 
 public class MySQLVaultStorage implements VaultStorage {
     private final String url;
     private final String username;
     private final String password;
-
-    // Cache: holder -> (vault number -> Inventory)
-    private final Map<String, Map<Integer, Inventory>> cache = new HashMap<>();
 
     public MySQLVaultStorage(String host, int port, String database, String username, String password) {
         this.url = "jdbc:mysql://" + host + ":" + port + "/" + database + "?useSSL=false";
@@ -60,17 +55,11 @@ public class MySQLVaultStorage implements VaultStorage {
         } catch (SQLException e) {
             PlayerVaults.getInstance().getLogger().severe("Failed to save vault: " + e.getMessage());
         }
-        // Update cache
-        cache.computeIfAbsent(holder, k -> new HashMap<>()).put(number, inventory);
     }
 
     @Override
     public Inventory loadVault(String holder, int number, int size) {
-        Map<Integer, Inventory> playerCache = cache.get(holder);
-        if (playerCache != null && playerCache.containsKey(number)) {
-            return playerCache.get(number);
-        }
-        Inventory inventory = null;
+        Inventory inventory;
         String sql = "SELECT data, size FROM playervaults WHERE holder = ? AND number = ?";
         try (Connection conn = getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, holder);
@@ -95,8 +84,6 @@ public class MySQLVaultStorage implements VaultStorage {
                             inventory.setContents(contents);
                         }
                     }
-                    // Cache loaded inventory
-                    cache.computeIfAbsent(holder, k -> new HashMap<>()).put(number, inventory);
                     return inventory;
                 }
             }
@@ -148,14 +135,6 @@ public class MySQLVaultStorage implements VaultStorage {
         } catch (SQLException e) {
             PlayerVaults.getInstance().getLogger().severe("Failed to delete vault: " + e.getMessage());
         }
-        // Remove from cache
-        Map<Integer, Inventory> playerCache = cache.get(holder);
-        if (playerCache != null) {
-            playerCache.remove(number);
-            if (playerCache.isEmpty()) {
-                cache.remove(holder);
-            }
-        }
     }
 
     @Override
@@ -167,51 +146,13 @@ public class MySQLVaultStorage implements VaultStorage {
         } catch (SQLException e) {
             PlayerVaults.getInstance().getLogger().severe("Failed to delete all vaults: " + e.getMessage());
         }
-        // Remove all from cache
-        cache.remove(holder);
     }
 
     @Override
     public void cachePlayerVault(String holder) {
-        // Preload all vaults for the holder into cache
-        String sql = "SELECT number, data, size FROM playervaults WHERE holder = ?";
-        Map<Integer, Inventory> playerCache = new HashMap<>();
-        try (Connection conn = getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, holder);
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    int number = rs.getInt("number");
-                    String serialized = rs.getString("data");
-                    int size = rs.getInt("size");
-                    if (size <= 0 || size % 9 != 0) {
-                        size = PlayerVaults.getInstance().getDefaultVaultSize();
-                    }
-                    ItemStack[] contents = CardboardBoxSerialization.fromStorage(serialized, holder);
-                    Inventory inventory = Bukkit.createInventory(new VaultHolder(number), size, PlayerVaults.getInstance().getVaultTitle(String.valueOf(number)));
-                    if (contents != null) {
-                        if (contents.length > size) {
-                            for (ItemStack stack : contents) {
-                                if (stack != null) {
-                                    inventory.addItem(stack);
-                                }
-                            }
-                        } else {
-                            inventory.setContents(contents);
-                        }
-                    }
-                    playerCache.put(number, inventory);
-                }
-            }
-        } catch (SQLException e) {
-            PlayerVaults.getInstance().getLogger().severe("Failed to cache player vaults: " + e.getMessage());
-        }
-        if (!playerCache.isEmpty()) {
-            cache.put(holder, playerCache);
-        }
     }
 
     @Override
     public void removePlayerCachedVault(String holder) {
-        cache.remove(holder);
     }
 }

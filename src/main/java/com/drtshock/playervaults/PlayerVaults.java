@@ -133,13 +133,12 @@ public class PlayerVaults extends JavaPlugin {
         UpdateCheck update = new UpdateCheck("PlayerVaultsX", this.getDescription().getVersion(), this.getServer().getName(), this.getServer().getVersion());
         debug("adventure!", time);
         time = System.currentTimeMillis();
+        vaultData = new File(this.getDataFolder(), "newvaults");
         loadConfig();
         DEBUG = getConf().isDebug();
         debug("config", time);
         time = System.currentTimeMillis();
-        vaultData = new File(this.getDataFolder(), "newvaults");
         Conversion.convert(this);
-        setupVaultManager();
         debug("conversion", time);
         time = System.currentTimeMillis();
         debug("uuidvaultmanager", time);
@@ -321,12 +320,8 @@ public class PlayerVaults extends JavaPlugin {
         VaultStorage storage;
         if ("mysql".equalsIgnoreCase(storageType)) {
             // Read MySQL parameters from config
-            String host = getConfig().getString("mysql.host");
-            int port = getConfig().getInt("mysql.port");
-            String database = getConfig().getString("mysql.database");
-            String username = getConfig().getString("mysql.username");
-            String password = getConfig().getString("mysql.password");
-            storage = new MySQLVaultStorage(host, port, database, username, password);
+            Config.Storage.MySQL mySQL = getConf().getStorage().getMySQL();
+            storage = new MySQLVaultStorage(mySQL.getHost(), mySQL.getPort(), mySQL.getDatabase(), mySQL.getUsername(), mySQL.getPassword());
         } else {
             storage = new YamlVaultStorage();
         }
@@ -479,6 +474,7 @@ public class PlayerVaults extends JavaPlugin {
             this.getLogger().log(Level.SEVERE, "Could not load lang.", e);
         }
         this.translation.cleanupMiniMessup();
+        setupVaultManager();
     }
 
     public Config getConf() {
